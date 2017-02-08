@@ -177,5 +177,5 @@ def details(request, username, experiment, filename):
 		# ---- aggiungo la riga ricostruita alla risposta
 		response['rows'].append(row)
 
-
+	# ---- restituisco la risposta al client
 	return JsonResponse(response)
