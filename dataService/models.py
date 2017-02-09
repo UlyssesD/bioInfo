@@ -22,7 +22,7 @@ class ForVariantRel(StructuredRel):
 	# ---- attributi
 	variant_id = StringProperty(UniqueIndex=True, Required=True)
 	info_id = StringProperty(UniqueIndex=True, Required=True)
-	START = IntegerProperty()
+	#START = IntegerProperty()
 	END = IntegerProperty()
 	ID = StringProperty()
 	QUAL = FloatProperty()

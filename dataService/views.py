@@ -7,6 +7,7 @@ from django.http import HttpResponse, JsonResponse
 
 from neomodel import db
 from .models import *
+from .utils.configuration import TABLE_STRUCTURE
 
 import json
 
@@ -101,18 +102,27 @@ def details(request, username, experiment, filename):
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
 		'count': 0,
+		'header': [],
 		'rows': []
 	}
 
 	# ---- ricavo il nodo corrispondente al file di interesse
 	file = getFile(username, experiment, filename)
 
+	# ---- ricavo dal file di configurazione la struttura della tabella per costruire la response
+	structure = TABLE_STRUCTURE[file.extension]
 
+	# ---- salvo il numero di righe totali
 	response['count'] = file.statistics["total"]
 
 	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
 	page = int(request.GET.get('page', 1))
 	limit = int(request.GET.get('limit', response['count']))
+
+	# ---- costruisco la riga di header della tabella
+	for el in structure:
+		response["header"].append(el["label"])
+
 
 	# ---- ricavo tutte le righe di un file per iterare sugli elementi
 	annotations = file.contains.all()[(page - 1)*limit:min( response['count'], (page * limit) )]
@@ -121,11 +131,7 @@ def details(request, username, experiment, filename):
 	for a in annotations:
 
 		# ---- inizializzo un dictionary di supporto per ricostruire la riga
-		row = {
-			'variant': {},
-			'annotation': {},
-			'genotypes': []
-		}
+		row = {}
 
 		# ---- ricavo la varianta a cui si riferisce l'annotazione
 		variants = a.forVariant.all()
@@ -135,47 +141,64 @@ def details(request, username, experiment, filename):
 			# ---- ricavo le informazioni della riga del file per la variante contenute nell'arco
 			v_infos = a.forVariant.relationship(v)
 
+			#for key,value in v.__dict__.items():
+			#	print key, ': ', value
+			print type(v.ALT)
+
 			# ---- memorizzo le informazioni sulla variante
-			row['variant'] = {
-				'CHROM': v.CHROM,
-				'POS': v.POS,
-				'REF': v.REF,
-				'ALT': v.ALT,
-				'MUTATION': v.MUTATION,
-				'START': v_infos.START,
-				'END': v_infos.END,
-				'ID': v_infos.ID,
-				'QUAL': v_infos.QUAL,
-				'FILTER': v_infos.FILTER,
-				'HETEROZIGOSITY': v_infos.HETEROZIGOSITY,
-				'dbSNP': v_infos.dbSNP
-			}
+			for key in ["CHROM", "POS", "REF", "ALT", "MUTATION"]:
+				attr = getattr(v, key)
+				row[key] = attr or "-"
+
+			for key in ["END", "ID", "QUAL", "FILTER", "HETEROZIGOSITY", "dbSNP"]:
+				attr = getattr(v_infos, key)
+				print key, ": ", type(attr)
+				row[key] = attr or "-"
+			
 
 		# ---- memorizzo le annotazioni della riga
-		row['annotation'] = a.attributes
+		for key, value in a.attributes.items():
+			print key, ": ", type(value)
+			row[key] = value or '-'
 
 		# ---- ricavo le informazioni sui genotipi per la riga
-		genotypes = a.supportedBy.all()
+#		genotypes = a.supportedBy.all()
 
 
-		for g in genotypes:
+#		for g in genotypes:
 
 			# ---- ricavo le informazioni della riga del file per il genotipo considerato riportate nell'arco
-			g_infos = a.supportedBy.relationship(g)
+#			g_infos = a.supportedBy.relationship(g)
 
-			genotype = {
-				'sample': g.sample,
-				'phased': g_infos.phased,
-				'state': g_infos.state
-				}
+#			genotype = {
+#				'sample': g.sample,
+#				'phased': g_infos.phased,
+#				'state': g_infos.state
+#				}
 
-			genotype.update(dict(g_infos.attributes))
+#			genotype.update(dict(g_infos.attributes))
 
-			row['genotypes'].append(genotype)
+#			row['genotypes'].append(genotype)
+		
+		# ---- inizializzo un dizionario per costruire la riga della tabella
+		table_row = []
+
+		for el in structure:
+			
+			if el["type"] == "single":
+				table_row.append(row[ el["params"] ] if row.has_key(el["params"]) else "-")
+			
+			elif el["type"] == "custom":
+				
+				template = str(el["template"])
+
+				for param in el["params"]:
+					template = template.replace(param, str(row[param]) )				
+				table_row.append(template)
 
 
 		# ---- aggiungo la riga ricostruita alla risposta
-		response['rows'].append(row)
+		response['rows'].append(table_row)
 
 	# ---- restituisco la risposta al client
 	return JsonResponse(response)
