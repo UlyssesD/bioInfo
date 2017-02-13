@@ -60,3 +60,80 @@ TABLE_STRUCTURE = {
 
 	]
 }
+
+# ---- elenco degli attributi da filtrare ricavati a partire dagli attributi FISSI nei file
+FIXED_FILTERS = {
+	".vcf": [
+		{
+			"label": "CHROM",
+			"param": "CHROM",
+			"type": "string"
+		},
+		{
+			"label": "POS",
+			"param": "POS",
+			"type": "numeric"
+		},
+		{
+			"label": "REF",
+			"param": "REF",
+			"type": "string"
+		},
+		{
+			"label": "ALT",
+			"param": "ALT",
+			"type": "string"
+		},
+		{
+			"label": "MUTATION",
+			"param": "MUTATION",
+			"type": "string"
+		},
+		{
+			"label": "END",
+			"param": "END",
+			"type": "numeric"
+		},
+		{
+			"label": "ID",
+			"param": "ID",
+			"type": "string"
+		},
+		{
+			"label": "QUAL",
+			"param": "ID",
+			"type": "numeric"
+		},
+		{
+			"label": "FILTER",
+			"param": "FILTER",
+			"type": "string"
+		},
+		{
+			"label": "HETEROZIGOSITY",
+			"param": "HETEROZIGOSITY",
+			"type": "numeric"
+		},
+		{
+			"label": "dbSNP",
+			"param": "dbSNP",
+			"type": "string"
+		},
+		{
+			"label": "sample",
+			"param": "sample",
+			"type": "string"
+		},
+		{
+			"label": "phased",
+			"param": "phased",
+			"type": "boolean"
+		},
+		{
+			"label": "state",
+			"param": "state",
+			"type": "string"
+		},
+		
+	]
+}

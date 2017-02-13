@@ -7,12 +7,49 @@ from django.http import HttpResponse, JsonResponse
 
 from neomodel import db
 from .models import *
-from .utils.configuration import TABLE_STRUCTURE
+from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS
 
 import json
 
 
 # ----- Funzioni di utility -----
+
+# ---- Metodo utilizzato per calcolare il filtro corretto per un attributo generico di un nodo
+def inferFilterFromType(key, value):
+
+	answer = {
+
+		"label": key,
+		"param": key
+	}
+
+	if isinstance(value,list):
+		t = type(value[0])
+	else:
+		t = type(value)
+
+	print key, ' type: ', t
+
+	if t is str or t is unicode:
+
+		print "Returning string"
+		answer['type'] = "string"
+
+	elif t is int or t is float:
+		
+		print "Returning numeric"
+		answer['type'] = "numeric"
+
+	elif t is bool:
+
+		print "Returning boolean"
+		answer['type'] = "boolean"
+	
+	else:
+		print "Skipping value"
+		answer['type'] = "unknown"
+
+	return answer
 
 # ---- Metodo utilizzato per ricavare velocemente uno specifico file (separato perchè usato più volte)
 def getFile(username, experiment, filename):
@@ -93,7 +130,83 @@ def statistics(request, username, experiment, filename):
 
 	# ---- restituisco la risposta al client
 	return JsonResponse(file.statistics)
+
+
+# ---- Funzione che restituisce l'elenco dei valori sui quali filtrare le informazioni di un file
+def filters(request, username, experiment, filename):
 	
+	# ---- inizializzo un dictionary per memorizzare i risultati
+	response = {
+		'list': []
+	}
+
+	# ---- ricavo il nodo corrispondente al file di interesse
+	file = getFile(username, experiment, filename)
+
+	# ---- ricavo gli attributi fissi su cui filtrare (discriminando rispetto al formato del file)
+	fixed = FIXED_FILTERS[file.extension]
+
+	# ---- aggiungo i filtri fissi alla response
+	response['list'] += fixed
+
+	# ---- inizializzo una struttura dati per ricavare i filtri "generali"
+	filters = {}
+
+	# ---- ricavo tutte le righe di un file per iterare sugli elementi
+	annotations = file.contains.all()
+
+	# ---- per ogni annotazione inferisco il giusto filtro (se non già calcolato)
+	for a in annotations:
+
+		for key, value in a.attributes.items():
+			
+			if not filters.has_key(key):
+				
+				f = inferFilterFromType(key, value)
+				
+				if not f["type"] == 'unknown':
+					filters[key] = f
+
+		# ---- prendo un genotipo di esempio
+		g = a.supportedBy.all()[0]
+
+		g_infos = a.supportedBy.relationship(g)
+
+		for key, value in g_infos.attributes.items():
+				
+			if not filters.has_key("Genotype " + key):
+					
+				f = inferFilterFromType(key, value)
+				
+				if not f["type"] == 'unknown':
+					f["label"] = "Genotype " + key
+					filters["Genotype " + key] = f
+
+		# ---- ricavo le informazioni sui genotipi per la riga
+		# genotypes = a.supportedBy.all()
+		
+		# for g in genotypes:
+
+		# 	# ---- ricavo le informazioni della riga del file per il genotipo considerato riportate nell'arco
+		# 	g_infos = a.supportedBy.relationship(g)
+
+		# 	for key, value in g_infos.attributes.items():
+				
+		# 		if not filters.has_key("Genotype " + key):
+					
+		# 			f = inferFilterFromType(key, value)
+					
+		# 			if not f["type"] == 'unknown':
+		# 				f["label"] = "Genotype " + key
+		# 				filters["Genotype " + key] = f
+
+
+	for key, value in filters.items():
+		response['list'].append(value)
+
+
+	# ---- restituisco la risposta al client
+	return JsonResponse(response)
 
 # ---- Funzione che restituisce le n righe di un file
 def details(request, username, experiment, filename):

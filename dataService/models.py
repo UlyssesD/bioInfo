@@ -13,7 +13,7 @@ class SupportedByRel(StructuredRel):
 	info_id = StringProperty(UniqueIndex=True, Required=True)
 	sample = StringProperty(UniqueIndex=True, Required=True)
 	phased = BooleanProperty()
-	state = IntegerProperty()
+	state = StringProperty()
 	attributes = JSONProperty()
 
 
