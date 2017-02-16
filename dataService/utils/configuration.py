@@ -66,73 +66,105 @@ FIXED_FILTERS = {
 	".vcf": [
 		{
 			"label": "CHROM",
+			"container": "Variant",
 			"param": "CHROM",
-			"type": "string"
+			"type": "string",
+			"value": None
 		},
 		{
 			"label": "POS",
+			"container": "Variant",
 			"param": "POS",
-			"type": "numeric"
-		},
-		{
-			"label": "REF",
-			"param": "REF",
-			"type": "string"
-		},
-		{
-			"label": "ALT",
-			"param": "ALT",
-			"type": "string"
-		},
-		{
-			"label": "MUTATION",
-			"param": "MUTATION",
-			"type": "string"
+			"type": "numeric",
+			"min": None,
+			"max": None
 		},
 		{
 			"label": "END",
+			"container": "ForVariant",
 			"param": "END",
-			"type": "numeric"
+			"type": "numeric",
+			"min": None,
+			"max": None
+		},
+		{
+			"label": "REF",
+			"container": "Variant",
+			"param": "REF",
+			"type": "string",
+			"value": None
+		},
+		{
+			"label": "ALT",
+			"container": "Variant",
+			"param": "ALT",
+			"type": "string",
+			"value": None
+		},
+		{
+			"label": "MUTATION",
+			"container": "Variant",
+			"param": "MUTATION",
+			"type": "string",
+			"value": None
 		},
 		{
 			"label": "ID",
+			"container": "ForVariant",
 			"param": "ID",
-			"type": "string"
+			"type": "string",
+			"value": None
 		},
 		{
 			"label": "QUAL",
+			"container": "ForVariant",
 			"param": "ID",
-			"type": "numeric"
+			"type": "numeric",
+			"min": None,
+			"max": None
 		},
 		{
 			"label": "FILTER",
+			"container": "ForVariant",
 			"param": "FILTER",
-			"type": "string"
+			"type": "string",
+			"value": None
 		},
 		{
 			"label": "HETEROZIGOSITY",
+			"container": "ForVariant",
 			"param": "HETEROZIGOSITY",
-			"type": "numeric"
+			"type": "numeric",
+			"min": None,
+			"max": None
 		},
 		{
 			"label": "dbSNP",
+			"container": "ForVariant",
 			"param": "dbSNP",
-			"type": "string"
+			"type": "string",
+			"value": None
 		},
 		{
 			"label": "sample",
+			"container": "Genotype",
 			"param": "sample",
-			"type": "string"
+			"type": "string",
+			"value": None
 		},
 		{
 			"label": "phased",
+			"container": "SupportedBy",
 			"param": "phased",
-			"type": "boolean"
+			"type": "boolean",
+			"value": None
 		},
 		{
 			"label": "state",
+			"container": "SupportedBy",
 			"param": "state",
-			"type": "string"
+			"type": "string",
+			"value": None
 		},
 		
 	]

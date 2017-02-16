@@ -75,11 +75,20 @@ class File(StructuredNode):
 	composedBy = RelationshipFrom('Experiment', 'Composed_By')
 	contains = RelationshipTo('Info', 'Contains')
 
-
 class Info(StructuredNode):
 
 	# ---- attributi
 	info_id = StringProperty(UniqueIndex=True, Required=True)
+	DP = FloatProperty()
+	Gene_refGene = StringProperty()
+	Func_refGene = StringProperty()
+	QD = FloatProperty()
+	SIFT_score = FloatProperty()
+	otg_all = FloatProperty()
+	NM = IntegerProperty()
+	LM = ArrayProperty()
+	FS = FloatProperty()
+	MQ0 = FloatProperty()
 	attributes = JSONProperty()
 
 	# ---- relazioni

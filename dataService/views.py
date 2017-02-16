@@ -10,15 +10,40 @@ from .models import *
 from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS
 
 import json
+import re
 
 
 # ----- Funzioni di utility -----
 
+def discardRow(filters, node):
+
+	# ---- inizializzo la risposta da restituire
+	discard = False
+
+	#print filters
+
+	# ---- per ogni filtro, verifico se il nodo la contiene e se verifica le proprietà specificate nel filtro
+	for el in filters:
+		#print "Value:", el["value"], "\tdeclared:", not el["value"] is "None", "\t string:", node[el["param"]], "\tsearch: ", re.search(el["value"], node[el["param"]], re.I | re.U)
+		# --- se la chiave non è presente, scarta
+		if  not node.has_key(el["param"]):
+			print "Key", el["param"], "not present in", node
+			discard = True
+			break
+		# --- se il tipo è stringa e non verifica la proprietà, scarta
+		elif ( el["type"] == "string" ) and ( not el["value"] is None ) and ( not re.match(el["value"], node[el["param"]], re.I) ):
+			discard = True
+			break
+
+
+	# ---- restituisco la risposta al metodo
+	return discard
+
 # ---- Metodo utilizzato per calcolare il filtro corretto per un attributo generico di un nodo
-def inferFilterFromType(key, value):
+def inferFilterFromType(container, key, value):
 
 	answer = {
-
+		"container": container,
 		"label": key,
 		"param": key
 	}
@@ -28,25 +53,29 @@ def inferFilterFromType(key, value):
 	else:
 		t = type(value)
 
-	print key, ' type: ', t
+	#print key, ' type: ', t
 
 	if t is str or t is unicode:
 
-		print "Returning string"
+		#print "Returning string"
 		answer['type'] = "string"
+		answer['value'] = None
 
 	elif t is int or t is float:
 		
-		print "Returning numeric"
+		#print "Returning numeric"
 		answer['type'] = "numeric"
+		answer['min'] = None
+		answer['max'] = None
 
 	elif t is bool:
 
-		print "Returning boolean"
+		#print "Returning boolean"
 		answer['type'] = "boolean"
+		answer['value'] = None
 	
 	else:
-		print "Skipping value"
+		#print "Skipping value"
 		answer['type'] = "unknown"
 
 	return answer
@@ -162,7 +191,7 @@ def filters(request, username, experiment, filename):
 			
 			if not filters.has_key(key):
 				
-				f = inferFilterFromType(key, value)
+				f = inferFilterFromType("Info", key, value)
 				
 				if not f["type"] == 'unknown':
 					filters[key] = f
@@ -176,7 +205,7 @@ def filters(request, username, experiment, filename):
 				
 			if not filters.has_key("Genotype " + key):
 					
-				f = inferFilterFromType(key, value)
+				f = inferFilterFromType("SupportedBy", key, value)
 				
 				if not f["type"] == 'unknown':
 					f["label"] = "Genotype " + key
@@ -227,10 +256,39 @@ def details(request, username, experiment, filename):
 
 	# ---- salvo il numero di righe totali
 	response['count'] = file.statistics["total"]
-
+	
 	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
 	page = int(request.GET.get('page', 1))
 	limit = int(request.GET.get('limit', response['count']))
+	query_filters = request.GET.get('filters', None)
+	# ---- inizializzo delle strutture dati per suddividere i filtri in base alla classe che li contiene (da usare nel seguito per filtrare i risultati)
+	variant_filters = []
+	for_variant_filters = []
+	info_filters = []
+	supported_by_filters = []
+	genotype_filters = []
+
+	# ---- se presenti, divido i filtri per categoria
+	if query_filters:
+		query_filters = json.loads(query_filters)
+		for el in query_filters['list']:
+			
+			if el["container"] == "Variant":
+				variant_filters.append(el)
+			
+			elif el["container"] == "ForVariant":
+				for_variant_filters.append(el)
+			
+			elif el["container"] == "Info":
+				info_filters.append(el)
+			
+			elif el["container"] == "SupportedBy":
+				supported_by_filters.append(el)
+			
+			elif el["container"] == "Genotype":
+				genotype_filters.append(el)
+
+
 
 	# ---- costruisco la riga di header della tabella
 	for el in structure:
@@ -238,25 +296,37 @@ def details(request, username, experiment, filename):
 
 
 	# ---- ricavo tutte le righe di un file per iterare sugli elementi
-	annotations = file.contains.all()[(page - 1)*limit:min( response['count'], (page * limit) )]
+	annotations = file.contains.all()
 
 	# ---- per ogni annotazione ricavo la variante associata e le colonne del genotipo
 	for a in annotations:
 
 		# ---- inizializzo un dictionary di supporto per ricostruire la riga
 		row = {}
+		row_discard = False
 
 		# ---- ricavo la varianta a cui si riferisce l'annotazione
 		variants = a.forVariant.all()
 
 		for v in variants:
 			
+			# ---- eseguo un test per verificare se (qualora siano stati applicati filtri) sia possibile scartare la riga
+			discard = False
+			
+			if variant_filters:
+				discard = discardRow(variant_filters, v.__dict__)
+
+				if discard:
+
+					#print "v:", v, "skipped" 
+					row_discard = True
+					break
+
 			# ---- ricavo le informazioni della riga del file per la variante contenute nell'arco
 			v_infos = a.forVariant.relationship(v)
 
 			#for key,value in v.__dict__.items():
 			#	print key, ': ', value
-			print type(v.ALT)
 
 			# ---- memorizzo le informazioni sulla variante
 			for key in ["CHROM", "POS", "REF", "ALT", "MUTATION"]:
@@ -265,13 +335,16 @@ def details(request, username, experiment, filename):
 
 			for key in ["END", "ID", "QUAL", "FILTER", "HETEROZIGOSITY", "dbSNP"]:
 				attr = getattr(v_infos, key)
-				print key, ": ", type(attr)
+				#print key, ": ", type(attr)
 				row[key] = attr or "-"
 			
+		if row_discard:
+			continue
 
+		#print "Row:", row , "saved"
 		# ---- memorizzo le annotazioni della riga
 		for key, value in a.attributes.items():
-			print key, ": ", type(value)
+			#print key, ": ", type(value)
 			row[key] = value or '-'
 
 		# ---- ricavo le informazioni sui genotipi per la riga
@@ -307,11 +380,18 @@ def details(request, username, experiment, filename):
 
 				for param in el["params"]:
 					template = template.replace(param, str(row[param]) )				
+				
 				table_row.append(template)
 
 
 		# ---- aggiungo la riga ricostruita alla risposta
 		response['rows'].append(table_row)
+		response['count'] = len(response['rows'])
+
+	print 'Row count: ', len(response['rows'])
+	
+	# ---- applico la paginazione per la response
+	response['rows'] = response['rows'][(page - 1)*limit:min( response['count'], (page * limit) )]
 
 	# ---- restituisco la risposta al client
 	return JsonResponse(response)
