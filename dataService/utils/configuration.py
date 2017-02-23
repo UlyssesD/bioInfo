@@ -25,12 +25,12 @@ TABLE_STRUCTURE = {
 		{
 			"label": "Gene",
 			"type": "single",
-			"params": "Gene.refGene"
+			"params": "Gene_refGene"
 		},
 		{
 			"label": "Location",
 			"type": "single",
-			"params": "Func.refGene"
+			"params": "Func_refGene"
 		},
 		{
 			"label": "dbSNP",
@@ -65,107 +65,150 @@ TABLE_STRUCTURE = {
 FIXED_FILTERS = {
 	".vcf": [
 		{
-			"label": "CHROM",
+			"label": "Chromosome",
 			"container": "Variant",
 			"param": "CHROM",
+			"param_type": "string",
 			"type": "string",
 			"value": None
 		},
 		{
-			"label": "POS",
+			"label": "Start",
 			"container": "Variant",
 			"param": "POS",
+			"param_type": "numeric",
 			"type": "numeric",
 			"min": None,
 			"max": None
 		},
 		{
-			"label": "END",
-			"container": "ForVariant",
-			"param": "END",
-			"type": "numeric",
-			"min": None,
-			"max": None
-		},
-		{
-			"label": "REF",
+			"label": "Reference",
 			"container": "Variant",
 			"param": "REF",
+			"param_type": "string",
 			"type": "string",
 			"value": None
 		},
 		{
-			"label": "ALT",
-			"container": "Variant",
-			"param": "ALT",
+			"label": "State",
+			"container": "SupportedBy",
+			"param": "state",
+			"param_type": "string",
 			"type": "string",
 			"value": None
 		},
 		{
-			"label": "MUTATION",
+			"label": "Read depth",
+			"container": "Info",
+			"param": "DP",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
+		},
+		{
+			"label": "Mutation",
 			"container": "Variant",
 			"param": "MUTATION",
 			"type": "string",
+			"param_type": "string",
 			"value": None
 		},
 		{
-			"label": "ID",
-			"container": "ForVariant",
-			"param": "ID",
+			"label": "Gene",
+			"container": "Info",
+			"param": "Gene_refGene",
+			"type": "string",
+			"param_type": "list",
+			"value": None
+		},
+		{
+			"label": "Genomic location",
+			"container": "Info",
+			"param": "Func_refGene",
+			"param_type": "list",
 			"type": "string",
 			"value": None
-		},
-		{
-			"label": "QUAL",
-			"container": "ForVariant",
-			"param": "ID",
-			"type": "numeric",
-			"min": None,
-			"max": None
-		},
-		{
-			"label": "FILTER",
-			"container": "ForVariant",
-			"param": "FILTER",
-			"type": "string",
-			"value": None
-		},
-		{
-			"label": "HETEROZIGOSITY",
-			"container": "ForVariant",
-			"param": "HETEROZIGOSITY",
-			"type": "numeric",
-			"min": None,
-			"max": None
 		},
 		{
 			"label": "dbSNP",
-			"container": "ForVariant",
+			"container": "Info",
 			"param": "dbSNP",
+			"param_type": "string",
 			"type": "string",
 			"value": None
 		},
 		{
-			"label": "sample",
-			"container": "Genotype",
-			"param": "sample",
-			"type": "string",
-			"value": None
+			"label": "Phred quality",
+			"container": "Info",
+			"param": "QUAL",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
 		},
 		{
-			"label": "phased",
-			"container": "SupportedBy",
-			"param": "phased",
-			"type": "boolean",
-			"value": None
+			"label": "CQ ratio",
+			"container": "Info",
+			"param": "QD",
+			"type": "numeric",
+			"param_type": "numeric",
+			"min": None,
+			"max": None
 		},
 		{
-			"label": "state",
-			"container": "SupportedBy",
-			"param": "state",
-			"type": "string",
-			"value": None
+			"label": "Fisher test",
+			"container": "Info",
+			"param": "FS",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
 		},
-		
+		{
+			"label": "SIFT score",
+			"container": "Info",
+			"param": "SIFT_score",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
+		},
+		{
+			"label": "MQ0",
+			"container": "Info",
+			"param": "MQ0",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
+		},
+		{
+			"label": "1000 Genomes all projects",
+			"container": "Info",
+			"param": "otg_all",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
+		},
+		{
+			"label": "Number of methods",
+			"container": "Info",
+			"param": "NM",
+			"param_type": "numeric",
+			"type": "numeric",
+			"min": None,
+			"max": None
+		},
+		{
+			"label": "Method",
+			"container": "Info",
+			"param": "LM",
+			"type": "string",
+			"param_type": "list",
+			"value": None
+		}
+
 	]
 }

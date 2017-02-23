@@ -17,20 +17,6 @@ class SupportedByRel(StructuredRel):
 	attributes = JSONProperty()
 
 
-class ForVariantRel(StructuredRel):
-
-	# ---- attributi
-	variant_id = StringProperty(UniqueIndex=True, Required=True)
-	info_id = StringProperty(UniqueIndex=True, Required=True)
-	#START = IntegerProperty()
-	END = IntegerProperty()
-	ID = StringProperty()
-	QUAL = FloatProperty()
-	FILTER = StringProperty()
-	FORMAT = StringProperty()
-	HETEROZIGOSITY = FloatProperty()
-	dbSNP = StringProperty()
-
 
 # ---- Definizione dei nodi
 
@@ -79,9 +65,17 @@ class Info(StructuredNode):
 
 	# ---- attributi
 	info_id = StringProperty(UniqueIndex=True, Required=True)
+	END = IntegerProperty()
+	ID = StringProperty()
+	QUAL = FloatProperty()
+	FILTER = StringProperty()
+	FORMAT = StringProperty()
+	HETEROZIGOSITY = FloatProperty()
+	dbSNP = StringProperty()
+
 	DP = FloatProperty()
-	Gene_refGene = StringProperty()
-	Func_refGene = StringProperty()
+	Gene_refGene = ArrayProperty()
+	Func_refGene = ArrayProperty()
 	QD = FloatProperty()
 	SIFT_score = FloatProperty()
 	otg_all = FloatProperty()
@@ -94,7 +88,7 @@ class Info(StructuredNode):
 	# ---- relazioni
 	contains = RelationshipFrom('File', 'Contains')
 	supportedBy = RelationshipTo('Genotype', 'Supported_By', model=SupportedByRel)
-	forVariant = RelationshipTo('Variant', 'For_Variant', model=ForVariantRel)
+	forVariant = RelationshipTo('Variant', 'For_Variant')
 
 
 class Genotype(StructuredNode):
@@ -114,11 +108,11 @@ class Variant(StructuredNode):
 	CHROM = StringProperty(Required=True)
 	POS = IntegerProperty()
 	REF = StringProperty()
-	ALT = StringProperty()
+	ALT = ArrayProperty()
 	MUTATION = StringProperty()
 
 	# ---- relazioni
-	forVariant = RelationshipFrom('Info', 'For_Variant', model=ForVariantRel)
+	forVariant = RelationshipFrom('Info', 'For_Variant')
 	hasVariant = RelationshipFrom('Chromosome', 'Has_Variant')
 	inVariant = RelationshipFrom('Gene', 'In_Variant')
 
