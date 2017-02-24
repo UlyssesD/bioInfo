@@ -18,12 +18,12 @@ import re
 def processFilter(el):
 	result = []
 	
-	if el["type"] == "numeric":
+	if el["param_type"] == "numeric":
 		if el["min"]:
 			result.append( {el["param"] + "__gte": float(el["min"]) })
 		if el["max"]:
 			result.append({el["param"] + "__lte": float(el["max"]) })
-	elif el["type"] == "string":
+	elif el["param_type"] == "string":
 		if el["value"]:
 			result.append({el["param"] + "__iexact": el["value"] })
 
@@ -111,48 +111,75 @@ def getFile(username, experiment, filename):
 def chromosomes(request):
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
-	response = {
-
-		'options': [
+	response =  {
+		"elements": [
 			{
-				"option": "All",
+				"option": "-- All --",
 				"value": None
 			}
 		]
 	}
 
+
 	# ---- ricavo tutti i nodi cromosoma nel database
 	for chrom in Chromosome.nodes.order_by('chromosome'):
-		response['options'].append(
+		response["elements"].append(
 			{
 				"option": chrom.chromosome,
 				"value": chrom.chromosome
 			})
 
+	# ---- restituisco la risposta al client
 	return JsonResponse(response)
 
-
-# ---- Funzione che restituisce l'elenco dei geni presenti nel database
-def genes(request):
+# ---- Funzione per restituire l'elenco delle location presenti nel database
+def locations(request):
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
-	response = {
-
-		'options': [
+	response =  {
+		"elements": [
 			{
-				"option": "All",
+				"option": "-- All --",
 				"value": None
 			}
 		]
 	}
 
+	# ---- inizializzo un insieme per costruire l'elenco delle possibili location
+	temp = set()
+
+	# ---- ricavo tutti i nodi cromosoma nel database
+	for info in Info.nodes.all():
+		
+		for loc in info.Func_refGene:
+			if loc not in temp:
+
+				temp.add(loc)
+
+				response["elements"].append(
+					{
+						"option": loc,
+						"value": loc
+					}
+				)
+
+	# ---- restituisco la risposta al client
+	return JsonResponse(response)
+
+# ---- Funzione che restituisce l'elenco dei geni presenti nel database
+def genes(request):
+
+	query_term = str(request.GET.get('q', None))
+	
+	# ---- inizializzo un dictionary per memorizzare i risultati
+	response = {
+		"elements": []
+	}
+
+
 	# ---- ricavo tutti i nodi gene nel database
-	for gene in Gene.nodes.order_by('gene_id'):
-		response['options'].append(
-			{
-				"option": gene.gene_id,
-				"value": gene.gene_id
-			})
+	for gene in Gene.nodes.filter(gene_id__istartswith=query_term).order_by('gene_id'):
+		response["elements"].append(gene.gene_id)
 
 	return JsonResponse(response)
 
@@ -193,7 +220,7 @@ def files(request, username, experiment):
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
 
-		'rows': []
+		'elements': []
 	}
 
 	# ---- ricavo l'esperimento di interesse
@@ -210,7 +237,7 @@ def files(request, username, experiment):
 			'extension': f.extension
 		}
 
-		response['rows'].append(file)
+		response['elements'].append(file)
 
 	# ---- restituisco la risposta al client
 	return JsonResponse(response)
@@ -388,7 +415,7 @@ def details(request, username, experiment, filename):
 	# ---- ricavo tutte le righe di un file per iterare sugli elementi
 	annotations = file.contains
 
-	print "Filter on annotations:", info_filters
+	#print "Filter on annotations:", info_filters
 	for i_f in info_filters["single"]:
 		annotations = annotations.filter(**i_f)
 
@@ -475,7 +502,7 @@ def details(request, username, experiment, filename):
 
 		# ---- ricavo le informazioni sui genotipi per la riga
 		genotypes = a.supportedBy
-		print "Filters for Genotypes:", supported_by_filters
+		#print "Filters for Genotypes:", supported_by_filters
 		for sbf in supported_by_filters["single"]:
 			genotypes = genotypes.match(**sbf)
 

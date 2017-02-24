@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+# ---- variabile temporanea per identificare l'address delle API di Django (da modificare per funzionare correttamente)
+API_ADDRESS = "localhost:8000"
+
 # ----- elenco degli attributi da visualizzare nelle colonne della tabella per i differenti formati di file
 # ----- (utilizzati per costruire la response a seguito della chiamata all'API)
 TABLE_STRUCTURE = {
@@ -69,7 +72,9 @@ FIXED_FILTERS = {
 			"container": "Variant",
 			"param": "CHROM",
 			"param_type": "string",
-			"type": "string",
+			"type": "select",
+			"options": None,
+			"url": "http://" + API_ADDRESS + "/dataService/chromosomes/",
 			"value": None
 		},
 		{
@@ -94,7 +99,30 @@ FIXED_FILTERS = {
 			"container": "SupportedBy",
 			"param": "state",
 			"param_type": "string",
-			"type": "string",
+			"type": "select",
+			"options": [
+				{
+					"option": "-- All --",
+					"value": None
+				},
+				{
+					"option": "hom_ref",
+					"value": "hom_ref"
+				},
+				{
+					"option": "hom_alt",
+					"value": "hom_alt"
+				},
+				{
+					"option": "het",
+					"value": "het"
+				},
+				{
+					"option": "uncalled",
+					"value": "uncalled"
+				},
+
+			],
 			"value": None
 		},
 		{
@@ -110,7 +138,26 @@ FIXED_FILTERS = {
 			"label": "Mutation",
 			"container": "Variant",
 			"param": "MUTATION",
-			"type": "string",
+			"type": "select",
+			"options": [
+				{
+					"option": "-- All --",
+					"value": None
+				},
+				{
+					"option": "snp",
+					"value": "snp"
+				},
+				{
+					"option": "indels",
+					"value": "indel"
+				},
+				{
+					"option": "unknown",
+					"value": "unknown"
+				},
+
+			],
 			"param_type": "string",
 			"value": None
 		},
@@ -118,7 +165,8 @@ FIXED_FILTERS = {
 			"label": "Gene",
 			"container": "Info",
 			"param": "Gene_refGene",
-			"type": "string",
+			"type": "autocomplete",
+			"url": "http://" + API_ADDRESS + "/dataService/genes/",
 			"param_type": "list",
 			"value": None
 		},
@@ -127,7 +175,9 @@ FIXED_FILTERS = {
 			"container": "Info",
 			"param": "Func_refGene",
 			"param_type": "list",
-			"type": "string",
+			"type": "select",
+			"url":  "http://" + API_ADDRESS + "/dataService/locations/",
+			"options": None,
 			"value": None
 		},
 		{
@@ -205,7 +255,26 @@ FIXED_FILTERS = {
 			"label": "Method",
 			"container": "Info",
 			"param": "LM",
-			"type": "string",
+			"type": "select",
+			"options": [
+				{
+					"option": "-- All --",
+					"value": None
+				},
+				{
+					"option": "Freebayes",
+					"value": "FB"
+				},
+				{
+					"option": "Varscan2",
+					"value": "VS"
+				},
+				{
+					"option": "Gatk",
+					"value": "GA"
+				}
+
+			],
 			"param_type": "list",
 			"value": None
 		}
