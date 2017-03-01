@@ -20,13 +20,15 @@ def processFilter(el):
 	
 	if el["param_type"] == "numeric":
 		if el["min"]:
-			result.append( {el["param"] + "__gte": float(el["min"]) })
+			result.append({ el["param"] + "__gte": float(el["min"]) })
 		if el["max"]:
-			result.append({el["param"] + "__lte": float(el["max"]) })
+			result.append({ el["param"] + "__lte": float(el["max"]) })
 	elif el["param_type"] == "string":
 		if el["value"]:
-			result.append({el["param"] + "__iexact": el["value"] })
-
+			result.append({ el["param"] + "__iexact": el["value"] })
+	elif el["param_type"] == "lola":
+		if el["value"]:
+			result.append({ el["param"] + "__icontains": el["value"] })
 
 	return result
 

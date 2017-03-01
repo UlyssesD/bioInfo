@@ -2,7 +2,7 @@
 
 
 # ---- variabile temporanea per identificare l'address delle API di Django (da modificare per funzionare correttamente)
-API_ADDRESS = "localhost:8000"
+API_ADDRESS = "localhost:80"
 
 # ----- elenco degli attributi da visualizzare nelle colonne della tabella per i differenti formati di file
 # ----- (utilizzati per costruire la response a seguito della chiamata all'API)
@@ -174,7 +174,7 @@ FIXED_FILTERS = {
 			"label": "Genomic location",
 			"container": "Info",
 			"param": "Func_refGene",
-			"param_type": "list",
+			"param_type": "lola",
 			"type": "select",
 			"url":  "http://" + API_ADDRESS + "/dataService/locations/",
 			"options": None,
