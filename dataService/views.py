@@ -7,11 +7,12 @@ from django.http import HttpResponse, JsonResponse
 
 from neomodel import db
 from .models import *
-from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS
+from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, DATA_FOLDER, CONVERTERS
 
+import strconv
 import json
 import re
-
+import pandas as panda
 
 # ----- Funzioni di utility -----
 
@@ -256,84 +257,381 @@ def statistics(request, username, experiment, filename):
 
 
 # ---- Funzione che restituisce l'elenco dei valori sui quali filtrare le informazioni di un file
+# def filters(request, username, experiment, filename):
+	
+# 	# ---- inizializzo un dictionary per memorizzare i risultati
+# 	response = {
+# 		'list': []
+# 	}
+
+# 	# ---- ricavo il nodo corrispondente al file di interesse
+# 	file = getFile(username, experiment, filename)
+
+# 	# ---- ricavo gli attributi fissi su cui filtrare (discriminando rispetto al formato del file)
+# 	fixed = FIXED_FILTERS[file.extension]
+
+# 	# ---- aggiungo i filtri fissi alla response
+# 	response['list'] += fixed
+
+# 	# ---- inizializzo una struttura dati per ricavare i filtri "generali"
+# 	#filters = {}
+
+# 	# ---- ricavo tutte le righe di un file per iterare sugli elementi
+# 	#annotations = file.contains.all()
+
+# 	# ---- per ogni annotazione inferisco il giusto filtro (se non già calcolato)
+# 	#for a in annotations:
+
+# 		#for key, value in a.attributes.items():
+			
+# 			#if not filters.has_key(key):
+				
+# 				#f = inferFilterFromType("Info", key, value)
+				
+# 				#if not f["type"] == 'unknown':
+# 				#	filters[key] = f
+
+# 		# ---- prendo un genotipo di esempio
+# 		#g = a.supportedBy.all()[0]
+
+# 		#g_infos = a.supportedBy.relationship(g)
+
+# 		#for key, value in g_infos.attributes.items():
+				
+# 			#if not filters.has_key("Genotype " + key):
+					
+# 				#f = inferFilterFromType("SupportedBy", key, value)
+				
+# 				#if not f["type"] == 'unknown':
+# 					#f["label"] = "Genotype " + key
+# 					#filters["Genotype " + key] = f
+
+# 		# ---- ricavo le informazioni sui genotipi per la riga
+# 		# genotypes = a.supportedBy.all()
+		
+# 		# for g in genotypes:
+
+# 		# 	# ---- ricavo le informazioni della riga del file per il genotipo considerato riportate nell'arco
+# 		# 	g_infos = a.supportedBy.relationship(g)
+
+# 		# 	for key, value in g_infos.attributes.items():
+				
+# 		# 		if not filters.has_key("Genotype " + key):
+					
+# 		# 			f = inferFilterFromType(key, value)
+					
+# 		# 			if not f["type"] == 'unknown':
+# 		# 				f["label"] = "Genotype " + key
+# 		# 				filters["Genotype " + key] = f
+
+
+# 	#for key, value in filters.items():
+# 		#response['list'].append(value)
+
+
+# 	# ---- restituisco la risposta al client
+# 	return JsonResponse(response)
+
+# ---- Funzione che restituisce le n righe di un file
+# def details(request, username, experiment, filename):
+
+
+# 	# ---- inizializzo un dictionary per memorizzare i risultati
+# 	response = {
+# 		'count': 0,
+# 		'header': [],
+# 		'rows': []
+# 	}
+
+# 	# ---- ricavo il nodo corrispondente al file di interesse
+# 	file = getFile(username, experiment, filename)
+
+# 	# ---- ricavo dal file di configurazione la struttura della tabella per costruire la response
+# 	structure = TABLE_STRUCTURE[file.extension]
+
+# 	# ---- salvo il numero di righe totali
+# 	response['count'] = file.statistics["total"]
+	
+# 	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
+# 	page = int(request.GET.get('page', 1))
+# 	limit = int(request.GET.get('limit', response['count']))
+# 	query_filters = request.GET.get('filters', None)
+# 	# ---- inizializzo delle strutture dati per suddividere i filtri in base alla classe che li contiene (da usare nel seguito per filtrare i risultati)
+# 	variant_filters = {
+# 		"single": [],
+# 		"list": []
+# 	}
+# 	for_variant_filters = {
+# 		"single": [],
+# 		"list": []
+# 	}
+# 	info_filters = {
+# 		"single": [],
+# 		"list": []
+# 	}
+# 	supported_by_filters = {
+# 		"single": [],
+# 		"list": []
+# 	}
+
+# 	# ---- se presenti, divido i filtri per categoria
+# 	if query_filters:
+# 		query_filters = json.loads(query_filters)
+# 		for el in query_filters['list']:
+			
+# 			if el["container"] == "Variant":
+# 				if el["param_type"] != "list":
+# 					variant_filters["single"] = variant_filters["single"]  + processFilter(el)
+# 				else:
+# 					if el["value"]:
+# 						variant_filters["list"] = variant_filters["list"]  + [el]
+
+			
+# 			elif el["container"] == "ForVariant":
+# 				if el["param_type"] != "list":
+# 					for_variant_filters["single"] = for_variant_filters["single"] + processFilter(el)
+# 				else:
+# 					if el["value"]:
+# 						for_variant_filters["list"] = for_variant_filters["list"] + [el]
+			
+# 			elif el["container"] == "Info":
+# 				if el["param_type"] != "list":
+# 					info_filters["single"] = info_filters["single"] + processFilter(el)
+# 				else:
+# 					if el["value"]:
+# 						info_filters["list"] = info_filters["list"] + [el]
+			
+# 			elif el["container"] == "SupportedBy":
+# 				if el["param_type"] != "list":
+# 					supported_by_filters["single"] = supported_by_filters["single"] + processFilter(el)
+# 				else:
+# 					if el["value"]:
+# 						supported_by_filters["list"] = supported_by_filters["list"] + [el]
+
+
+
+# 	# ---- costruisco la riga di header della tabella
+# 	for el in structure:
+# 		response["header"].append(el["label"])
+
+
+# 	# ---- ricavo tutte le righe di un file per iterare sugli elementi
+# 	annotations = file.contains
+
+# 	#print "Filter on annotations:", info_filters
+# 	for i_f in info_filters["single"]:
+# 		annotations = annotations.filter(**i_f)
+
+# 	# ---- per ogni annotazione ricavo la variante associata e le colonne del genotipo
+# 	for a in annotations:
+		
+# 		skip = False
+
+# 		for i_f in info_filters["list"]:
+
+# 			if i_f["value"] not in a.__dict__[i_f["param"]]:
+# 				skip = True
+# 				break
+		
+# 		if skip:
+# 			continue
+
+# 		# ---- inizializzo un dictionary di supporto per ricostruire la riga
+# 		row = {}
+# 		row_discard = False
+
+# 		# ---- ricavo la varianta a cui si riferisce l'annotazione
+# 		variants = a.forVariant
+
+# 		#print "Filter on variant:", variant_filters
+
+# 		for vf in variant_filters["single"]:
+# 			variants = variants.filter(**vf)
+
+# 		if len(variants) == 0:
+# 			continue
+
+# 		for v in variants:
+			
+
+# 			skip = False
+
+# 			for v_f in variant_filters["list"]:
+
+# 				if v_f["value"] not in v.__dict__[v_f["param"]]:
+# 					skip = True
+# 					break
+		
+# 			if skip:
+				
+# 				row_discard = True
+# 				break
+# 			# ---- eseguo un test per verificare se (qualora siano stati applicati filtri) sia possibile scartare la riga
+# 			#discard = False
+			
+# 			#if variant_filters:
+# 			#	discard = discardRow(variant_filters, v.__dict__)
+
+# 			#	if discard:
+
+# 					#print "v:", v, "skipped" 
+# 			#		row_discard = True
+# 			#		break
+
+# 			# ---- ricavo le informazioni della riga del file per la variante contenute nell'arco
+			
+
+# 			#for key,value in v.__dict__.items():
+# 			#	print key, ': ', value
+
+# 			# ---- memorizzo le informazioni sulla variante
+# 			for key in ["CHROM", "POS", "REF", "ALT", "MUTATION"]:
+# 				attr = getattr(v, key)
+# 				row[key] = attr or "-"
+
+			
+# 		if row_discard:
+# 			continue
+
+# 		#print "Row:", row , "saved"
+# 		# ---- memorizzo le annotazioni della riga
+# 		for key in ["DP", "Gene_refGene", "Func_refGene", "QD", "SIFT_score", "otg_all", "NM", "LM", "FS", "MQ0", "END", "ID", "QUAL", "FILTER", "HETEROZIGOSITY", "dbSNP"]:
+# 			attr = getattr(a, key)
+# 			row[key] = attr or '-'
+
+# 		#for key, value in a.attributes.items():
+# 			#print key, ": ", type(value)
+# 		#	row[key] = value or '-'
+
+# 		# ---- ricavo le informazioni sui genotipi per la riga
+# 		genotypes = a.supportedBy
+# 		#print "Filters for Genotypes:", supported_by_filters
+# 		for sbf in supported_by_filters["single"]:
+# 			genotypes = genotypes.match(**sbf)
+
+# 		# ---- verifico (se presenti) che siano verificate le proprietà rispetto i genotipi
+# 		if len(genotypes) == 0:
+# 			continue
+		
+
+# #		for g in genotypes:
+
+# 			# ---- ricavo le informazioni della riga del file per il genotipo considerato riportate nell'arco
+# #			g_infos = a.supportedBy.relationship(g)
+
+# #			genotype = {
+# #				'sample': g.sample,
+# #				'phased': g_infos.phased,
+# #				'state': g_infos.state
+# #				}
+
+# #			genotype.update(dict(g_infos.attributes))
+
+# #			row['genotypes'].append(genotype)
+		
+# 		# ---- inizializzo un dizionario per costruire la riga della tabella
+# 		table_row = []
+
+# 		for el in structure:
+			
+# 			if el["type"] == "single":
+# 				table_row.append(row[ el["params"] ] if row.has_key(el["params"]) else "-")
+			
+# 			elif el["type"] == "custom":
+				
+# 				template = str(el["template"])
+
+# 				for param in el["params"]:
+# 					template = template.replace(param, str(row[param]) )				
+				
+# 				table_row.append(template)
+
+
+# 		# ---- aggiungo la riga ricostruita alla risposta
+# 		response['rows'].append(table_row)
+# 		response['count'] = len(response['rows'])
+
+# 	print 'Row count: ', len(response['rows'])
+	
+# 	# ---- applico la paginazione per la response
+# 	response['rows'] = response['rows'][(page - 1)*limit:min( response['count'], (page * limit) )]
+
+# 	# ---- restituisco la risposta al client
+# 	return JsonResponse(response)
+
+# ---- Funzione che restituisce l'elenco dei valori sui quali filtrare le informazioni di un file
 def filters(request, username, experiment, filename):
 	
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
-		'list': []
-	}
 
-	# ---- ricavo il nodo corrispondente al file di interesse
-	file = getFile(username, experiment, filename)
+ 		'list': []
+ 	}
 
-	# ---- ricavo gli attributi fissi su cui filtrare (discriminando rispetto al formato del file)
-	fixed = FIXED_FILTERS[file.extension]
+ 	# ---- leggo il csv specificato dall'input
+	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
+	dictionary = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".dictionary.data.gz", sep="\t", compression="infer")
 
-	# ---- aggiungo i filtri fissi alla response
-	response['list'] += fixed
+	#data.columns = data.columns.str.strip().split(',')
 
-	# ---- inizializzo una struttura dati per ricavare i filtri "generali"
-	#filters = {}
+	#print keys
+	#print dictionary
 
-	# ---- ricavo tutte le righe di un file per iterare sugli elementi
-	#annotations = file.contains.all()
+	for index, row in keys.iterrows():
 
-	# ---- per ogni annotazione inferisco il giusto filtro (se non già calcolato)
-	#for a in annotations:
-
-		#for key, value in a.attributes.items():
-			
-			#if not filters.has_key(key):
-				
-				#f = inferFilterFromType("Info", key, value)
-				
-				#if not f["type"] == 'unknown':
-				#	filters[key] = f
-
-		# ---- prendo un genotipo di esempio
-		#g = a.supportedBy.all()[0]
-
-		#g_infos = a.supportedBy.relationship(g)
-
-		#for key, value in g_infos.attributes.items():
-				
-			#if not filters.has_key("Genotype " + key):
-					
-				#f = inferFilterFromType("SupportedBy", key, value)
-				
-				#if not f["type"] == 'unknown':
-					#f["label"] = "Genotype " + key
-					#filters["Genotype " + key] = f
-
-		# ---- ricavo le informazioni sui genotipi per la riga
-		# genotypes = a.supportedBy.all()
+		if row.Type == "int" or row.Type == "float":
+			response["list"].append({
+					"label": row.Key,
+					"type": "numeric",
+					"min": None,
+					"max": None
+				})
 		
-		# for g in genotypes:
+		elif row.Type == "boolean":
+			response["list"].append({
+					"label": row.Key,
+					"type": "boolean",
+					"value": None
+				})
 
-		# 	# ---- ricavo le informazioni della riga del file per il genotipo considerato riportate nell'arco
-		# 	g_infos = a.supportedBy.relationship(g)
+		elif row.Type == "string":
+			entries = dictionary[ dictionary["Key"] == row.Key ].iloc[:,1:].T.dropna()
+			
+			# print row.Key, ", empty?", entries.empty
 
-		# 	for key, value in g_infos.attributes.items():
-				
-		# 		if not filters.has_key("Genotype " + key):
+			if not entries.empty:
+				print "Number of entries for key:", len(entries.iloc[:,0])
+
+			 	if len(entries.iloc[:,0]) <= 30:
 					
-		# 			f = inferFilterFromType(key, value)
+			 		response["list"].append({
+			 			"label": row.Key,
+			 			"type": "select",
+			 			"options": entries.iloc[:,0].tolist(),
+			 			"value": None
+			 		})
+
+			 	else:
 					
-		# 			if not f["type"] == 'unknown':
-		# 				f["label"] = "Genotype " + key
-		# 				filters["Genotype " + key] = f
+			 		response["list"].append({
+			 			"label": row.Key,
+			 			"type": "string",
+			 			#"options": entries.iloc[:,0].tolist(),
+			 			"value": None
+			 		})
+			else:
 
+				response["list"].append({
+					"label": row.Key,
+					"type": "string",
+					"value": None
+				})
 
-	#for key, value in filters.items():
-		#response['list'].append(value)
+ 	# ---- restituisco la risposta al client
+ 	return JsonResponse(response)
 
-
-	# ---- restituisco la risposta al client
-	return JsonResponse(response)
-
-# ---- Funzione che restituisce le n righe di un file
+# ---- Funzione che restituisce le righe di un file da mostrare in tabella
 def details(request, username, experiment, filename):
-
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
@@ -342,218 +640,87 @@ def details(request, username, experiment, filename):
 		'rows': []
 	}
 
-	# ---- ricavo il nodo corrispondente al file di interesse
-	file = getFile(username, experiment, filename)
-
 	# ---- ricavo dal file di configurazione la struttura della tabella per costruire la response
-	structure = TABLE_STRUCTURE[file.extension]
+	#structure = TABLE_STRUCTURE[".vcf"]
 
-	# ---- salvo il numero di righe totali
-	response['count'] = file.statistics["total"]
-	
 	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
 	page = int(request.GET.get('page', 1))
 	limit = int(request.GET.get('limit', response['count']))
 	query_filters = request.GET.get('filters', None)
-	# ---- inizializzo delle strutture dati per suddividere i filtri in base alla classe che li contiene (da usare nel seguito per filtrare i risultati)
-	variant_filters = {
-		"single": [],
-		"list": []
-	}
-	for_variant_filters = {
-		"single": [],
-		"list": []
-	}
-	info_filters = {
-		"single": [],
-		"list": []
-	}
-	supported_by_filters = {
-		"single": [],
-		"list": []
-	}
 
-	# ---- se presenti, divido i filtri per categoria
-	if query_filters:
-		query_filters = json.loads(query_filters)
-		for el in query_filters['list']:
-			
-			if el["container"] == "Variant":
-				if el["param_type"] != "list":
-					variant_filters["single"] = variant_filters["single"]  + processFilter(el)
-				else:
-					if el["value"]:
-						variant_filters["list"] = variant_filters["list"]  + [el]
-
-			
-			elif el["container"] == "ForVariant":
-				if el["param_type"] != "list":
-					for_variant_filters["single"] = for_variant_filters["single"] + processFilter(el)
-				else:
-					if el["value"]:
-						for_variant_filters["list"] = for_variant_filters["list"] + [el]
-			
-			elif el["container"] == "Info":
-				if el["param_type"] != "list":
-					info_filters["single"] = info_filters["single"] + processFilter(el)
-				else:
-					if el["value"]:
-						info_filters["list"] = info_filters["list"] + [el]
-			
-			elif el["container"] == "SupportedBy":
-				if el["param_type"] != "list":
-					supported_by_filters["single"] = supported_by_filters["single"] + processFilter(el)
-				else:
-					if el["value"]:
-						supported_by_filters["list"] = supported_by_filters["list"] + [el]
-
-
-
+	#print query_filters
 	# ---- costruisco la riga di header della tabella
-	for el in structure:
-		response["header"].append(el["label"])
+	#for el in structure:
+	#	response["header"].append(el["label"])
 
 
-	# ---- ricavo tutte le righe di un file per iterare sugli elementi
-	annotations = file.contains
-
-	#print "Filter on annotations:", info_filters
-	for i_f in info_filters["single"]:
-		annotations = annotations.filter(**i_f)
-
-	# ---- per ogni annotazione ricavo la variante associata e le colonne del genotipo
-	for a in annotations:
-		
-		skip = False
-
-		for i_f in info_filters["list"]:
-
-			if i_f["value"] not in a.__dict__[i_f["param"]]:
-				skip = True
-				break
-		
-		if skip:
-			continue
-
-		# ---- inizializzo un dictionary di supporto per ricostruire la riga
-		row = {}
-		row_discard = False
-
-		# ---- ricavo la varianta a cui si riferisce l'annotazione
-		variants = a.forVariant
-
-		#print "Filter on variant:", variant_filters
-
-		for vf in variant_filters["single"]:
-			variants = variants.filter(**vf)
-
-		if len(variants) == 0:
-			continue
-
-		for v in variants:
-			
-
-			skip = False
-
-			for v_f in variant_filters["list"]:
-
-				if v_f["value"] not in v.__dict__[v_f["param"]]:
-					skip = True
-					break
-		
-			if skip:
-				
-				row_discard = True
-				break
-			# ---- eseguo un test per verificare se (qualora siano stati applicati filtri) sia possibile scartare la riga
-			#discard = False
-			
-			#if variant_filters:
-			#	discard = discardRow(variant_filters, v.__dict__)
-
-			#	if discard:
-
-					#print "v:", v, "skipped" 
-			#		row_discard = True
-			#		break
-
-			# ---- ricavo le informazioni della riga del file per la variante contenute nell'arco
-			
-
-			#for key,value in v.__dict__.items():
-			#	print key, ': ', value
-
-			# ---- memorizzo le informazioni sulla variante
-			for key in ["CHROM", "POS", "REF", "ALT", "MUTATION"]:
-				attr = getattr(v, key)
-				row[key] = attr or "-"
-
-			
-		if row_discard:
-			continue
-
-		#print "Row:", row , "saved"
-		# ---- memorizzo le annotazioni della riga
-		for key in ["DP", "Gene_refGene", "Func_refGene", "QD", "SIFT_score", "otg_all", "NM", "LM", "FS", "MQ0", "END", "ID", "QUAL", "FILTER", "HETEROZIGOSITY", "dbSNP"]:
-			attr = getattr(a, key)
-			row[key] = attr or '-'
-
-		#for key, value in a.attributes.items():
-			#print key, ": ", type(value)
-		#	row[key] = value or '-'
-
-		# ---- ricavo le informazioni sui genotipi per la riga
-		genotypes = a.supportedBy
-		#print "Filters for Genotypes:", supported_by_filters
-		for sbf in supported_by_filters["single"]:
-			genotypes = genotypes.match(**sbf)
-
-		# ---- verifico (se presenti) che siano verificate le proprietà rispetto i genotipi
-		if len(genotypes) == 0:
-			continue
-		
-
-#		for g in genotypes:
-
-			# ---- ricavo le informazioni della riga del file per il genotipo considerato riportate nell'arco
-#			g_infos = a.supportedBy.relationship(g)
-
-#			genotype = {
-#				'sample': g.sample,
-#				'phased': g_infos.phased,
-#				'state': g_infos.state
-#				}
-
-#			genotype.update(dict(g_infos.attributes))
-
-#			row['genotypes'].append(genotype)
-		
-		# ---- inizializzo un dizionario per costruire la riga della tabella
-		table_row = []
-
-		for el in structure:
-			
-			if el["type"] == "single":
-				table_row.append(row[ el["params"] ] if row.has_key(el["params"]) else "-")
-			
-			elif el["type"] == "custom":
-				
-				template = str(el["template"])
-
-				for param in el["params"]:
-					template = template.replace(param, str(row[param]) )				
-				
-				table_row.append(template)
+	# ---- leggo il csv specificato dall'input
+	data = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", compression="infer")
 
 
-		# ---- aggiungo la riga ricostruita alla risposta
-		response['rows'].append(table_row)
-		response['count'] = len(response['rows'])
-
-	print 'Row count: ', len(response['rows'])
+	#response["count"] = len(data.index)
+	filtered = data
 	
-	# ---- applico la paginazione per la response
-	response['rows'] = response['rows'][(page - 1)*limit:min( response['count'], (page * limit) )]
 
-	# ---- restituisco la risposta al client
+	if query_filters:
+
+		query_filters = json.loads(query_filters)
+		#print query_filters
+		for filt in query_filters['list']:
+			
+			#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
+
+			#if filt["type"]  == 'numeric':
+			#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
+			if filt["type"]  == 'string' or filt["type"] == 'select' or filt["type"] == 'autocomplete':
+				if filt["value"]:
+					print filt["label"], ", key term: ", filt["value"]
+					filtered = filtered[( filtered[filt["label"] ].map(lambda v: filt["value"] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+			elif str(filt["type"])  == 'numeric':
+				if filt["min"] or filt["max"]:
+					filt["min"] = filt["min"] or -float('Inf')
+					filt["max"] = filt["max"] or float('Inf')
+					filtered = filtered[( filtered[ filt["label"] ].map(lambda v: any_in_range(v, filt["min"], filt["max"]) ) )]
+
+			if filtered.empty:
+				print "No result for selected filters."
+				break
+
+	#print filtered
+
+	response["count"] = len(filtered.index)
+	response["header"] = list(data.columns.values)
+	#for el in filtered:
+	#for el in data[(data['Gene.refGene'].map(lambda x: 'SOD1' in x)) & (data.POS >= 0)].iterrows():
+	#	print el
+
+
+	
+
+	response["rows"] = filtered.where((panda.notnull(filtered)), None).sort_values(by=["CHROM","POS"])[(page - 1)*limit:min( response['count'], (page * limit) )].values.tolist()
+	#print data.query('"KCNE1" in gene_refGene')
+	#print data.gene_refGene.unique()
+
+
 	return JsonResponse(response)
+
+def any_in_list(array, value):
+	
+	res = False
+
+	print value, "in",array.strip('[]').split(',')
+
+	for v in str(array).strip('[]').split(','):
+		res = res | (v == value)
+
+	return res
+
+def any_in_range(array, min, max):
+
+	res = False
+
+	for v in str(array).strip('[]').split(','):
+			#print type(float(v)), (min <= float(v) <= max)
+			res = res | (min <= float(v) <= max)
+
+	return res

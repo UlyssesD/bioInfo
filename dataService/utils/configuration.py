@@ -1,6 +1,34 @@
 # -*- coding: utf-8 -*-
+import pandas 
+# ---- variable contenente il path della cartella che contiene i file formato csv elaborati da pandas
+DATA_FOLDER = "/home/stefano_d/Documenti/database/"
 
-
+CONVERTERS = {
+	"AB": list
+	# "CHROM": str,
+	# "ID": str,
+	# "POS": int,
+	# "END": int,
+	# "REF": str,
+	# "ALT": list, 
+	# "MUTATION": str, 
+	# "QUAL": str,
+	# "FILTER": str,
+	# "FORMAT": str,
+	# "HETEROZIGOSITY":str,
+	# "dbSNP": str,
+	# "DP": int,
+	# "gene_refGene": list,
+	# "func_refGene": list,
+	# "QD": str,
+	# "sift_score": str,
+	# "otg_all": str,
+	# "NM": int,
+	# "LM": list,
+	# "FS": str,
+	# "MQ0": str,
+	# "genotypes_state": list
+}
 # ---- variabile temporanea per identificare l'address delle API di Django (da modificare per funzionare correttamente)
 API_ADDRESS = "localhost:80"
 
