@@ -7,8 +7,9 @@ from django.http import HttpResponse, JsonResponse
 
 from neomodel import db
 from .models import *
-from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, DATA_FOLDER, CONVERTERS
+from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, DATA_FOLDER, CONVERTERS, BLACKLIST
 
+import gzip
 import strconv
 import json
 import re
@@ -250,11 +251,11 @@ def files(request, username, experiment):
 def statistics(request, username, experiment, filename):
 
 	# ---- ricavo il nodo corrispondente al file di interesse
-	file = getFile(username, experiment, filename)
-
+	#file = getFile(username, experiment, filename)
+	response = {}
 	# ---- restituisco la risposta al client
-	return JsonResponse(file.statistics)
-
+	#return JsonResponse(file.statistics)
+	return JsonResponse(response)
 
 # ---- Funzione che restituisce l'elenco dei valori sui quali filtrare le informazioni di un file
 # def filters(request, username, experiment, filename):
@@ -572,8 +573,10 @@ def filters(request, username, experiment, filename):
 	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
 	dictionary = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".dictionary.data.gz", sep="\t", compression="infer")
 
-	#data.columns = data.columns.str.strip().split(',')
-
+	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
+	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
+	dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
+	
 	#print keys
 	#print dictionary
 
@@ -600,7 +603,7 @@ def filters(request, username, experiment, filename):
 			# print row.Key, ", empty?", entries.empty
 
 			if not entries.empty:
-				print "Number of entries for key:", len(entries.iloc[:,0])
+				print "Number of entries for key", row.Key, ":", len(entries.iloc[:,0])
 
 			 	if len(entries.iloc[:,0]) <= 30:
 					
@@ -615,8 +618,8 @@ def filters(request, username, experiment, filename):
 					
 			 		response["list"].append({
 			 			"label": row.Key,
-			 			"type": "string",
-			 			#"options": entries.iloc[:,0].tolist(),
+			 			"type": "autocomplete",
+			 			"options": entries.iloc[:,0].tolist(),
 			 			"value": None
 			 		})
 			else:
@@ -635,6 +638,7 @@ def details(request, username, experiment, filename):
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
+		'last': 0,
 		'count': 0,
 		'header': [],
 		'rows': []
@@ -645,7 +649,8 @@ def details(request, username, experiment, filename):
 
 	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
 	page = int(request.GET.get('page', 1))
-	limit = int(request.GET.get('limit', response['count']))
+	limit = int(request.GET.get('limit', 20))
+	last = int(request.GET.get('last', 1))
 	query_filters = request.GET.get('filters', None)
 
 	#print query_filters
@@ -653,54 +658,84 @@ def details(request, username, experiment, filename):
 	#for el in structure:
 	#	response["header"].append(el["label"])
 
+	with gzip.open(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", 'r') as f:
+		header = f.readline().rstrip().split('\t')
 
 	# ---- leggo il csv specificato dall'input
-	data = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", compression="infer")
-
-
-	#response["count"] = len(data.index)
-	filtered = data
+	chunksize = 50000
+	chunk_number = 0
+	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=last, chunksize=chunksize, compression="infer")
 	
+	
+	query_filters = json.loads(query_filters)
 
-	if query_filters:
+	for data in chunks:
+		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
+		data.drop(BLACKLIST, axis=1, inplace=True, errors="ignore")
 
-		query_filters = json.loads(query_filters)
-		#print query_filters
-		for filt in query_filters['list']:
-			
-			#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
+		#response["count"] = len(data.index)
+		filtered = data
 
-			#if filt["type"]  == 'numeric':
-			#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
-			if filt["type"]  == 'string' or filt["type"] == 'select' or filt["type"] == 'autocomplete':
-				if filt["value"]:
-					print filt["label"], ", key term: ", filt["value"]
-					filtered = filtered[( filtered[filt["label"] ].map(lambda v: filt["value"] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
-			elif str(filt["type"])  == 'numeric':
-				if filt["min"] or filt["max"]:
-					filt["min"] = filt["min"] or -float('Inf')
-					filt["max"] = filt["max"] or float('Inf')
-					filtered = filtered[( filtered[ filt["label"] ].map(lambda v: any_in_range(v, filt["min"], filt["max"]) ) )]
+		if query_filters:
 
-			if filtered.empty:
-				print "No result for selected filters."
+			#print query_filters
+			for filt in query_filters['list']:
+					
+				#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
+
+				#if filt["type"]  == 'numeric':
+				#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
+				if filt["type"]  == 'string' or filt["type"] == 'select' or filt["type"] == 'autocomplete':
+					if filt["value"]:
+						print filt["label"], ", key term: ", filt["value"]
+						filtered = filtered[( filtered[filt["label"] ].map(lambda v: filt["value"] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+				elif str(filt["type"])  == 'numeric':
+					if filt["min"] or filt["max"]:
+						filt["min"] = filt["min"] or -float('Inf')
+						filt["max"] = filt["max"] or float('Inf')
+						filtered = filtered[( filtered[ filt["label"] ].map(lambda v: any_in_range(v, filt["min"], filt["max"]) ) )]
+
+				if filtered.empty:
+					print "No result for selected filters."
+					break
+
+		if filtered.empty:
+			chunk_number = chunk_number + 1
+			continue
+
+		rows = filtered.where((panda.notnull(filtered)), None).values.tolist()
+
+		for idx in range(len(rows)):
+			response["rows"].append(rows[idx])
+			if len(response["rows"]) == limit:
+				response["last"] = last + chunk_number * chunksize + filtered.index.tolist()[idx] + 1
 				break
 
-	#print filtered
+		#print filtered.index.tolist()
 
-	response["count"] = len(filtered.index)
-	response["header"] = list(data.columns.values)
+		response["header"] = list(data.columns.values)
+
+		if len(response["rows"]) == limit:
+			break
+
+		chunk_number = chunk_number + 1
+		#response["rows"] = response["rows"] + filtered.where((panda.notnull(filtered)), None).values.tolist()
+		#response["count"] = response["count"] + len(filtered.index)
+		#break
 	#for el in filtered:
 	#for el in data[(data['Gene.refGene'].map(lambda x: 'SOD1' in x)) & (data.POS >= 0)].iterrows():
 	#	print el
 
+	#response["rows"] = response["rows"][(page - 1)*limit:min( response['count'], (page * limit) )]
+	#print "Last row selected:", response['last']
 
-	
-
-	response["rows"] = filtered.where((panda.notnull(filtered)), None).sort_values(by=["CHROM","POS"])[(page - 1)*limit:min( response['count'], (page * limit) )].values.tolist()
+	#response["rows"] = filtered.where((panda.notnull(filtered)), None).values.tolist()
 	#print data.query('"KCNE1" in gene_refGene')
 	#print data.gene_refGene.unique()
+	
+	response["count"] = len(response["rows"])
 
+	print "last:", response["last"]
 
 	return JsonResponse(response)
 

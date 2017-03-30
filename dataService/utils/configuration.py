@@ -32,6 +32,15 @@ CONVERTERS = {
 # ---- variabile temporanea per identificare l'address delle API di Django (da modificare per funzionare correttamente)
 API_ADDRESS = "localhost:80"
 
+# ---- variabile per memorizzare le colonne da inserire in blacklist
+BLACKLIST = [
+	"GeneDetail.refGene",
+	"technology.ILLUMINA",
+	"ANNOVAR_DATE",
+	"CIGAR"
+]
+
+
 # ----- elenco degli attributi da visualizzare nelle colonne della tabella per i differenti formati di file
 # ----- (utilizzati per costruire la response a seguito della chiamata all'API)
 TABLE_STRUCTURE = {
