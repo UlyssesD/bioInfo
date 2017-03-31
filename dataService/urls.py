@@ -12,6 +12,7 @@ urlpatterns = [
 	url(r'^(?P<username>[a-zA-Z0-9_]+)/(?P<experiment>[a-zA-Z0-9_\- ]+)/(?P<filename>[a-zA-Z0-9_\-. ]+)/statistics/$', views.statistics, name='statistics'),
 	url(r'^(?P<username>[a-zA-Z0-9_]+)/(?P<experiment>[a-zA-Z0-9_\- ]+)/(?P<filename>[a-zA-Z0-9_\-. ]+)/details/$', views.details, name='details'),
 	url(r'^(?P<username>[a-zA-Z0-9_]+)/(?P<experiment>[a-zA-Z0-9_\- ]+)/(?P<filename>[a-zA-Z0-9_\-. ]+)/filters/$', views.filters, name='filters'),
+	url(r'^(?P<username>[a-zA-Z0-9_]+)/(?P<experiment>[a-zA-Z0-9_\- ]+)/(?P<filename>[a-zA-Z0-9_\-. ]+)/count/$', views.count, name='count'),
 
 
 ]

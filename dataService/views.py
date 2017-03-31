@@ -586,6 +586,8 @@ def filters(request, username, experiment, filename):
 			response["list"].append({
 					"label": row.Key,
 					"type": "numeric",
+					"importance": 4,
+					"length": 0,
 					"min": None,
 					"max": None
 				})
@@ -594,6 +596,8 @@ def filters(request, username, experiment, filename):
 			response["list"].append({
 					"label": row.Key,
 					"type": "boolean",
+					"length": 0,
+					"importance": 2,
 					"value": None
 				})
 
@@ -610,6 +614,8 @@ def filters(request, username, experiment, filename):
 			 		response["list"].append({
 			 			"label": row.Key,
 			 			"type": "select",
+			 			"importance": 1,
+			 			"length": len(entries.iloc[:,0]),
 			 			"options": entries.iloc[:,0].tolist(),
 			 			"value": None
 			 		})
@@ -619,6 +625,8 @@ def filters(request, username, experiment, filename):
 			 		response["list"].append({
 			 			"label": row.Key,
 			 			"type": "autocomplete",
+			 			"importance": 3,
+			 			"length": len(entries.iloc[:,0]),
 			 			"options": entries.iloc[:,0].tolist(),
 			 			"value": None
 			 		})
@@ -627,6 +635,8 @@ def filters(request, username, experiment, filename):
 				response["list"].append({
 					"label": row.Key,
 					"type": "string",
+					"importance": 5,
+					"length": 0,
 					"value": None
 				})
 
@@ -634,11 +644,95 @@ def filters(request, username, experiment, filename):
  	return JsonResponse(response)
 
 # ---- Funzione che restituisce le righe di un file da mostrare in tabella
+def count(request, username, experiment, filename):
+
+	# ---- inizializzo un dictionary per memorizzare i risultati
+	response = {
+		'count': 0,
+	}
+
+	# ---- ricavo dal file di configurazione la struttura della tabella per costruire la response
+	#structure = TABLE_STRUCTURE[".vcf"]
+
+	data = json.loads(request.body)
+	
+	print data
+	first = data["first"] or 1
+	query_filters = data["filters"] or None
+
+	print "POST params = { first:", str(first), "}"
+
+	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
+	#page = int(request.body.get('page', 100))
+	#limit = int(request.body.get('limit', 200))
+	#last = int(request.body.get('last', 100))
+	#query_filters = request.body.get('filters', "lallero")
+
+	with gzip.open(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", 'r') as f:
+		header = f.readline().rstrip().split('\t')
+
+	# ---- leggo il csv specificato dall'input
+	chunksize = 100000
+	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=first, chunksize=chunksize, compression="infer")
+
+	if query_filters:
+		lola = panda.DataFrame(data=query_filters['list'])
+		#lola = lola[(panda.notnull(lola["min"])) | (panda.notnull(lola["max"])) | (panda.notnull(lola["value"]))]
+		lola.dropna(inplace=True, thresh=5)
+		lola.sort_values(["importance", "length"], ascending=[True, False], inplace=True)
+
+
+		print lola
+
+	for data in chunks:
+		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
+		data.drop(BLACKLIST, axis=1, inplace=True, errors="ignore")
+
+		#response["count"] = len(data.index)
+		filtered = data
+
+		if query_filters and len(lola.index) > 0:
+		#if query_filters:
+
+			#print query_filters
+			for index, filt in lola.iterrows():
+			#for filt in query_filters['list']:
+					
+				#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
+
+				#if filt["type"]  == 'numeric':
+				#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
+				if filt["type"]  == 'string' or filt["type"] == 'select' or filt["type"] == 'autocomplete':
+					if filt["value"]:
+						print filt["label"], ", key term: ", filt["value"]
+						filtered = filtered[( filtered[filt["label"] ].map(lambda v: filt["value"] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+				elif str(filt["type"])  == 'numeric':
+					if filt["min"] or filt["max"]:
+						filt["min"] = filt["min"] or -float('Inf')
+						filt["max"] = filt["max"] or float('Inf')
+						filtered = filtered[( filtered[ filt["label"] ].map(lambda v: any_in_range(v, filt["min"], filt["max"]) ) )]
+
+				if filtered.empty:
+					print "No result for selected filters."
+					break
+
+		if filtered.empty:
+			continue
+
+		response["count"] = response["count"] + len(filtered.index)
+
+
+
+	return JsonResponse(response)
+
+
+# ---- Funzione che restituisce le righe di un file da mostrare in tabella
 def details(request, username, experiment, filename):
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
-		'last': 0,
+		'first': 1,
+		'last': 1,
 		'count': 0,
 		'header': [],
 		'rows': []
@@ -647,12 +741,22 @@ def details(request, username, experiment, filename):
 	# ---- ricavo dal file di configurazione la struttura della tabella per costruire la response
 	#structure = TABLE_STRUCTURE[".vcf"]
 
-	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
-	page = int(request.GET.get('page', 1))
-	limit = int(request.GET.get('limit', 20))
-	last = int(request.GET.get('last', 1))
-	query_filters = request.GET.get('filters', None)
+	data = json.loads(request.body)
 
+
+
+	limit = data["limit"] or 5
+	last = data["last"] or 1
+	query_filters = data["filters"] or None
+
+	# ---- ricavo le informazioni dalla GET sulla paginazione (se disponibile)
+	#page = int(request.body.get('page', 100))
+	#limit = int(request.body.get('limit', 200))
+	#last = int(request.body.get('last', 100))
+	#query_filters = request.body.get('filters', "lallero")
+
+	#print request.body
+	print "POST params = { limit:", str(limit) + ", last:", str(last), "}"#, query_filters
 	#print query_filters
 	# ---- costruisco la riga di header della tabella
 	#for el in structure:
@@ -662,12 +766,18 @@ def details(request, username, experiment, filename):
 		header = f.readline().rstrip().split('\t')
 
 	# ---- leggo il csv specificato dall'input
-	chunksize = 50000
+	chunksize = 100000
 	chunk_number = 0
 	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=last, chunksize=chunksize, compression="infer")
-	
-	
-	query_filters = json.loads(query_filters)
+
+	if query_filters:
+		lola = panda.DataFrame(data=query_filters['list'])
+		#lola = lola[(panda.notnull(lola["min"])) | (panda.notnull(lola["max"])) | (panda.notnull(lola["value"]))]
+		lola.dropna(inplace=True, thresh=5)
+		lola.sort_values(["importance", "length"], ascending=[True, False], inplace=True)
+
+
+		print lola
 
 	for data in chunks:
 		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
@@ -676,10 +786,12 @@ def details(request, username, experiment, filename):
 		#response["count"] = len(data.index)
 		filtered = data
 
-		if query_filters:
+		if query_filters and len(lola.index) > 0:
+		#if query_filters:
 
 			#print query_filters
-			for filt in query_filters['list']:
+			for index, filt in lola.iterrows():
+			#for filt in query_filters['list']:
 					
 				#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
 
@@ -704,11 +816,16 @@ def details(request, username, experiment, filename):
 			continue
 
 		rows = filtered.where((panda.notnull(filtered)), None).values.tolist()
+		indexes = filtered.index.tolist()
 
 		for idx in range(len(rows)):
 			response["rows"].append(rows[idx])
+
+			if len(response["rows"]) == 1:
+				response["first"] = last + indexes[idx]
+
 			if len(response["rows"]) == limit:
-				response["last"] = last + chunk_number * chunksize + filtered.index.tolist()[idx] + 1
+				response["last"] = last + indexes[idx] + 1 # + chunk_number * chunksize 
 				break
 
 		#print filtered.index.tolist()
