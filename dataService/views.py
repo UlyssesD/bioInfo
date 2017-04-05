@@ -14,6 +14,10 @@ import strconv
 import json
 import re
 import pandas as panda
+import urllib
+
+HOST = "localhost"
+PORT = "80"
 
 # ----- Funzioni di utility -----
 
@@ -560,6 +564,34 @@ def statistics(request, username, experiment, filename):
 # 	# ---- restituisco la risposta al client
 # 	return JsonResponse(response)
 
+def search(request, key):
+
+	# ---- inizializzo un dictionary per memorizzare i risultati
+	response = {
+
+		'options': []
+	}
+
+	data = json.loads(request.body)
+
+	username = data["username"]
+	experiment = data["experiment"]
+	filename = data["file"]
+	term = data["term"].lower()
+
+	print username, experiment, file, key, term
+
+	dictionary = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".dictionary.data.gz", sep="\t", compression="infer")
+	dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
+
+	entries = dictionary[(dictionary["Key"] == key)].iloc[:,1:].T.dropna()
+	
+	response["options"] = entries[(entries.iloc[:,0].map(lambda entry: entry.lower().startswith(term)))].iloc[:,0].tolist()
+
+	print response["options"]
+	# ---- restituisco la risposta al client
+ 	return JsonResponse(response)
+
 # ---- Funzione che restituisce l'elenco dei valori sui quali filtrare le informazioni di un file
 def filters(request, username, experiment, filename):
 	
@@ -627,7 +659,8 @@ def filters(request, username, experiment, filename):
 			 			"type": "autocomplete",
 			 			"importance": 3,
 			 			"length": len(entries.iloc[:,0]),
-			 			"options": entries.iloc[:,0].tolist(),
+			 			"url": "http://" + HOST + ":" + PORT + "/dataService/search/" + urllib.quote(row.Key, safe='') + "/",
+			 			#"options": entries.iloc[:,0].tolist(),
 			 			"value": None
 			 		})
 			else:
@@ -676,13 +709,13 @@ def count(request, username, experiment, filename):
 	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=first, chunksize=chunksize, compression="infer")
 
 	if query_filters:
-		lola = panda.DataFrame(data=query_filters['list'])
-		#lola = lola[(panda.notnull(lola["min"])) | (panda.notnull(lola["max"])) | (panda.notnull(lola["value"]))]
-		lola.dropna(inplace=True, thresh=5)
-		lola.sort_values(["importance", "length"], ascending=[True, False], inplace=True)
+		filters_frame = panda.DataFrame(data=query_filters['list'])
+		#filters_frame = filters_frame[(panda.notnull(filters_frame["min"])) | (panda.notnull(filters_frame["max"])) | (panda.notnull(filters_frame["value"]))]
+		filters_frame.dropna(inplace=True, thresh=5)
+		filters_frame.sort_values(["importance", "length"], ascending=[True, False], inplace=True)
 
 
-		print lola
+		print filters_frame
 
 	for data in chunks:
 		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
@@ -691,26 +724,26 @@ def count(request, username, experiment, filename):
 		#response["count"] = len(data.index)
 		filtered = data
 
-		if query_filters and len(lola.index) > 0:
+		if query_filters and len(filters_frame.index) > 0:
 		#if query_filters:
 
 			#print query_filters
-			for index, filt in lola.iterrows():
+			for filt in filters_frame.where((panda.notnull(filters_frame)), None).values.tolist():
 			#for filt in query_filters['list']:
 					
 				#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
 
 				#if filt["type"]  == 'numeric':
 				#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
-				if filt["type"]  == 'string' or filt["type"] == 'select' or filt["type"] == 'autocomplete':
-					if filt["value"]:
-						print filt["label"], ", key term: ", filt["value"]
-						filtered = filtered[( filtered[filt["label"] ].map(lambda v: filt["value"] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
-				elif str(filt["type"])  == 'numeric':
-					if filt["min"] or filt["max"]:
-						filt["min"] = filt["min"] or -float('Inf')
-						filt["max"] = filt["max"] or float('Inf')
-						filtered = filtered[( filtered[ filt["label"] ].map(lambda v: any_in_range(v, filt["min"], filt["max"]) ) )]
+				if filt[5]  == 'string' or filt[5] == 'select' or filt[5] == 'autocomplete':
+					if filt[6]:
+						print filt[1], ", key term: ", filt[6]
+						filtered = filtered[( filtered[filt[1] ].map(lambda v: filt[6] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+				elif str(filt[5])  == 'numeric':
+					if filt[4] or filt[3]:
+						filt[4] = filt[4] or -float('Inf')
+						filt[3] = filt[3] or float('Inf')
+						filtered = filtered[( filtered[ filt[1] ].map(lambda v: any_in_range(v, filt[4], filt[3]) ) )]
 
 				if filtered.empty:
 					print "No result for selected filters."
@@ -735,6 +768,8 @@ def details(request, username, experiment, filename):
 		'last': 1,
 		'count': 0,
 		'header': [],
+		'show_header': [],
+		'active_filters': [],
 		'rows': []
 	}
 
@@ -745,7 +780,7 @@ def details(request, username, experiment, filename):
 
 
 
-	limit = data["limit"] or 5
+	limit = data["limit"] or 10
 	last = data["last"] or 1
 	query_filters = data["filters"] or None
 
@@ -771,13 +806,37 @@ def details(request, username, experiment, filename):
 	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=last, chunksize=chunksize, compression="infer")
 
 	if query_filters:
-		lola = panda.DataFrame(data=query_filters['list'])
-		#lola = lola[(panda.notnull(lola["min"])) | (panda.notnull(lola["max"])) | (panda.notnull(lola["value"]))]
-		lola.dropna(inplace=True, thresh=5)
-		lola.sort_values(["importance", "length"], ascending=[True, False], inplace=True)
+		filters_frame = panda.DataFrame(data=query_filters['list'])
+		#lola = filters_frame[(panda.notnull(filters_frame["min"])) | (panda.notnull(filters_frame["max"])) | (panda.notnull(filters_frame["value"]))]
+		filters_frame.dropna(inplace=True, thresh=5)
+		filters_frame.sort_values(["importance", "length"], ascending=[True, False], inplace=True)
 
+		
 
-		print lola
+		for f in filters_frame.where((panda.notnull(filters_frame)), None).values.tolist():
+			
+			if f[5] == "numeric":
+
+				if f[4] is not None:
+					response["active_filters"].append({
+					"name": f[1],
+					"var": "min",
+					"value": ">=" + str(f[4])
+					})
+				if f[3] is not None:
+					response["active_filters"].append({
+					"name": f[1],
+					"var": "max",
+					"value": "<=" + str(f[3])
+					})
+			else:
+				response["active_filters"].append({
+					"name": f[1],
+					"var": "value",
+					"value": "=" + str(f[6])
+					})
+				
+		print filters_frame
 
 	for data in chunks:
 		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
@@ -786,26 +845,27 @@ def details(request, username, experiment, filename):
 		#response["count"] = len(data.index)
 		filtered = data
 
-		if query_filters and len(lola.index) > 0:
+		if query_filters and len(filters_frame.index) > 0:
 		#if query_filters:
 
 			#print query_filters
-			for index, filt in lola.iterrows():
+			for filt in filters_frame.where((panda.notnull(filters_frame)), None).values.tolist():
 			#for filt in query_filters['list']:
 					
 				#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
 
 				#if filt["type"]  == 'numeric':
 				#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
-				if filt["type"]  == 'string' or filt["type"] == 'select' or filt["type"] == 'autocomplete':
-					if filt["value"]:
-						print filt["label"], ", key term: ", filt["value"]
-						filtered = filtered[( filtered[filt["label"] ].map(lambda v: filt["value"] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
-				elif str(filt["type"])  == 'numeric':
-					if filt["min"] or filt["max"]:
-						filt["min"] = filt["min"] or -float('Inf')
-						filt["max"] = filt["max"] or float('Inf')
-						filtered = filtered[( filtered[ filt["label"] ].map(lambda v: any_in_range(v, filt["min"], filt["max"]) ) )]
+				if filt[5]  == 'string' or filt[5] == 'select' or filt[5] == 'autocomplete':
+					#if filt[6]:
+					print filt[1], ", key term: ", filt[6]
+					filtered = filtered[( filtered[filt[1] ].map(lambda v: filt[6] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+				elif str(filt[5])  == 'numeric':
+					#if filt[4] or filt[3]:
+
+						filt[4] = filt[4] if filt[4] is not None  else -float('Inf')
+						filt[3] = filt[3] if filt[3] is not None  else float('Inf')
+						filtered = filtered[( filtered[ filt[1] ].map(lambda v: any_in_range(v, filt[4], filt[3]) ) )]
 
 				if filtered.empty:
 					print "No result for selected filters."
@@ -819,6 +879,11 @@ def details(request, username, experiment, filename):
 		indexes = filtered.index.tolist()
 
 		for idx in range(len(rows)):
+
+			for i in range(len(rows[idx])):
+				if isinstance(rows[idx][i], str):
+					rows[idx][i] = rows[idx][i].replace("'", "").strip('[]').split(',')
+
 			response["rows"].append(rows[idx])
 
 			if len(response["rows"]) == 1:
@@ -850,6 +915,8 @@ def details(request, username, experiment, filename):
 	#print data.query('"KCNE1" in gene_refGene')
 	#print data.gene_refGene.unique()
 	
+
+	response["show_header"] = [True]*8 + [False]*(len(response["header"]) - 8)
 	response["count"] = len(response["rows"])
 
 	print "last:", response["last"]
@@ -860,7 +927,7 @@ def any_in_list(array, value):
 	
 	res = False
 
-	print value, "in",array.strip('[]').split(',')
+	#print value, "in",array.strip('[]').split(',')
 
 	for v in str(array).strip('[]').split(','):
 		res = res | (v == value)
