@@ -256,7 +256,24 @@ def statistics(request, username, experiment, filename):
 
 	# ---- ricavo il nodo corrispondente al file di interesse
 	#file = getFile(username, experiment, filename)
-	response = {}
+	response = {
+		"elems": []
+	}
+
+	stats = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".stats.gz", sep="\t", compression="infer")
+
+	print stats
+
+	keys = stats.columns.values
+
+	for row in stats.values.tolist():
+		for idx in range(len(keys)):
+			response["elems"].append({
+				"name": keys[idx],
+				"value": row[idx]
+			})
+	
+	print response
 	# ---- restituisco la risposta al client
 	#return JsonResponse(file.statistics)
 	return JsonResponse(response)
@@ -585,10 +602,15 @@ def search(request, key):
 	dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
 
 	entries = dictionary[(dictionary["Key"] == key)].iloc[:,1:].T.dropna()
-	
-	response["options"] = entries[(entries.iloc[:,0].map(lambda entry: entry.lower().startswith(term)))].iloc[:,0].tolist()
+	response["options"] = entries.iloc[:,0].tolist()
+	#print entries
+	#response["options"] = entries[(entries.iloc[:,0].map(lambda entry: entry.lower().startswith(term)))].iloc[:,0].tolist()
 
-	print response["options"]
+	#response["options"].sort()
+	#if len(response["options"]) > 0:
+	#	response["options"] = response["options"]
+
+ 	#print response["options"]
 	# ---- restituisco la risposta al client
  	return JsonResponse(response)
 
@@ -648,7 +670,7 @@ def filters(request, username, experiment, filename):
 			 			"type": "select",
 			 			"importance": 1,
 			 			"length": len(entries.iloc[:,0]),
-			 			"options": entries.iloc[:,0].tolist(),
+			 			"options": sorted(entries.iloc[:,0].tolist()),
 			 			"value": None
 			 		})
 
@@ -660,7 +682,7 @@ def filters(request, username, experiment, filename):
 			 			"importance": 3,
 			 			"length": len(entries.iloc[:,0]),
 			 			"url": "http://" + HOST + ":" + PORT + "/dataService/search/" + urllib.quote(row.Key, safe='') + "/",
-			 			#"options": entries.iloc[:,0].tolist(),
+			 			"options": entries.iloc[:,0].tolist(),
 			 			"value": None
 			 		})
 			else:
@@ -689,8 +711,7 @@ def count(request, username, experiment, filename):
 
 	data = json.loads(request.body)
 	
-	print data
-	first = data["first"] or 1
+	first = max(data["first"] - 1, 1) or 1
 	query_filters = data["filters"] or None
 
 	print "POST params = { first:", str(first), "}"
@@ -703,6 +724,16 @@ def count(request, username, experiment, filename):
 
 	with gzip.open(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", 'r') as f:
 		header = f.readline().rstrip().split('\t')
+
+
+	# ---- leggo il csv specificato dall'input
+	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
+	
+	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
+	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
+
+	# ---- ricavo dalla lista dei tipi quelli che hannno tipo booleano (per rimpiazzare i valori "NaN" con "False")
+	keys = keys[keys["Type"] == "boolean"]
 
 	# ---- leggo il csv specificato dall'input
 	chunksize = 100000
@@ -721,6 +752,11 @@ def count(request, username, experiment, filename):
 		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
 		data.drop(BLACKLIST, axis=1, inplace=True, errors="ignore")
 
+		if len(keys.index) > 0:
+			for key in keys.values.tolist():
+				data[key[0]] = data[key[0]].fillna(False, inplace=True)
+
+
 		#response["count"] = len(data.index)
 		filtered = data
 
@@ -729,21 +765,25 @@ def count(request, username, experiment, filename):
 
 			#print query_filters
 			for filt in filters_frame.where((panda.notnull(filters_frame)), None).values.tolist():
+				print filt
 			#for filt in query_filters['list']:
 					
 				#print filt["label"], "in list", filtered.columns.tolist(), "?", (filt["label"] in filtered.columns.tolist())
 
 				#if filt["type"]  == 'numeric':
 				#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
-				if filt[5]  == 'string' or filt[5] == 'select' or filt[5] == 'autocomplete':
-					if filt[6]:
-						print filt[1], ", key term: ", filt[6]
-						filtered = filtered[( filtered[filt[1] ].map(lambda v: filt[6] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
-				elif str(filt[5])  == 'numeric':
-					if filt[4] or filt[3]:
-						filt[4] = filt[4] or -float('Inf')
-						filt[3] = filt[3] or float('Inf')
-						filtered = filtered[( filtered[ filt[1] ].map(lambda v: any_in_range(v, filt[4], filt[3]) ) )]
+				if filt[5] == 'boolean':
+					filtered = filtered[(filtered[ filt[1] ] == filt[6] )]
+				elif filt[5]  == 'string' or filt[5] == 'select' or filt[5] == 'autocomplete':
+					#if filt[6]:
+					#print filt[1], ", key term: ", filt[6]
+					filtered = filtered[( filtered[filt[1] ].map(lambda v: filt[6].lower() in str(v).lower().strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+				elif filt[5]  == 'numeric':
+					filt[4] = float(filt[4]) if filt[4] is not None  else -float('Inf')
+					filt[3] = float(filt[3]) if filt[3] is not None  else float('Inf')
+					#print "min:", filt[4], "max:", filt[3]
+					
+					filtered = filtered[( filtered[ filt[1] ].map(lambda v: any_in_range(v, filt[4], filt[3]) ) )]
 
 				if filtered.empty:
 					print "No result for selected filters."
@@ -800,10 +840,23 @@ def details(request, username, experiment, filename):
 	with gzip.open(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", 'r') as f:
 		header = f.readline().rstrip().split('\t')
 
+
+	# ---- leggo il csv specificato dall'input
+	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
+	
+	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
+	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
+
+	# ---- ricavo dalla lista dei tipi quelli che hannno tipo booleano (per rimpiazzare i valori "NaN" con "False")
+	keys = keys[keys["Type"] == "boolean"]
+
+	print keys
 	# ---- leggo il csv specificato dall'input
 	chunksize = 100000
 	chunk_number = 0
 	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=last, chunksize=chunksize, compression="infer")
+
+
 
 	if query_filters:
 		filters_frame = panda.DataFrame(data=query_filters['list'])
@@ -842,6 +895,11 @@ def details(request, username, experiment, filename):
 		# ---- elimino dal dataset le colonne (se presenti) marcate nella blacklist
 		data.drop(BLACKLIST, axis=1, inplace=True, errors="ignore")
 
+		if len(keys.index) > 0:
+			for key in keys.values.tolist():
+				data[key[0]] = data[key[0]].fillna(False, inplace=True)
+
+
 		#response["count"] = len(data.index)
 		filtered = data
 
@@ -856,11 +914,13 @@ def details(request, username, experiment, filename):
 
 				#if filt["type"]  == 'numeric':
 				#	filtered = filtered[( filtered[ filt["key"] ].map(lambda v: filt["min"]  <= v <= filt["max"] ) )]
-				if filt[5]  == 'string' or filt[5] == 'select' or filt[5] == 'autocomplete':
+				if filt[5] == 'boolean':
+					filtered = filtered[(filtered[ filt[1] ] == filt[6] )]
+				elif filt[5]  == 'string' or filt[5] == 'select' or filt[5] == 'autocomplete':
 					#if filt[6]:
-					print filt[1], ", key term: ", filt[6]
-					filtered = filtered[( filtered[filt[1] ].map(lambda v: filt[6] in str(v).strip("[]").replace("'", "").replace(" ", "").split(',')) )]
-				elif str(filt[5])  == 'numeric':
+					#print filt[1], ", key term: ", filt[6]
+					filtered = filtered[( filtered[filt[1] ].map(lambda v: filt[6].lower() in str(v).lower().strip("[]").replace("'", "").replace(" ", "").split(',')) )]
+				elif filt[5] == 'numeric':
 					#if filt[4] or filt[3]:
 
 						filt[4] = filt[4] if filt[4] is not None  else -float('Inf')
@@ -937,9 +997,9 @@ def any_in_list(array, value):
 def any_in_range(array, min, max):
 
 	res = False
-
+	
 	for v in str(array).strip('[]').split(','):
-			#print type(float(v)), (min <= float(v) <= max)
+			#print v
 			res = res | (min <= float(v) <= max)
 
 	return res
