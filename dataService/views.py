@@ -115,6 +115,54 @@ def getFile(username, experiment, filename):
 
 # -------------------------------
 
+def signup(request):
+
+	response = {
+		"status": None
+	}
+
+	data = json.loads(request.body)
+
+	username = data["username"]
+	password = data["password"]
+	email = data["email"]
+
+	print "Username:", username, "Password:", password, "e-mail:", email
+
+	user_exists = User.nodes.get_or_none(username=username)
+
+	if not user_exists:
+		User(username=username, password=password, email=email).save()
+		response["status"] = "Success"
+	else:
+		response["status"] = "Exists"
+
+	print response
+	return JsonResponse(response)
+
+def login(request):
+
+	response = {
+		"status": None
+	}
+
+	data = json.loads(request.body)
+
+	username = data["username"]
+	password = data["password"]
+
+	print "Username:", username, "Password:", password
+
+	user_exists = User.nodes.get_or_none(username=username, password=password)
+
+	if user_exists:
+		response["status"] = "Success"
+	else:
+		response["status"] = "Mismatch"
+		
+	print response
+	return JsonResponse(response)
+
 # ---- Funzione per restituire l'elenco dei cromosomi presenti nel database
 def chromosomes(request):
 

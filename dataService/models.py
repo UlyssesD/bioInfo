@@ -20,13 +20,25 @@ class SupportedByRel(StructuredRel):
 
 # ---- Definizione dei nodi
 
+# class User(StructuredNode):
+
+# 	# ---- attributi
+# 	username = StringProperty(UniqueIndex=True, Required=True)
+
+# 	# ---- relazioni
+# 	created = RelationshipTo('Experiment', 'Created')
+
 class User(StructuredNode):
 
 	# ---- attributi
 	username = StringProperty(UniqueIndex=True, Required=True)
+	password = StringProperty(Required=True)
+
+	email = StringProperty(Required=True)
 
 	# ---- relazioni
 	created = RelationshipTo('Experiment', 'Created')
+
 
 
 class Experiment(StructuredNode):
