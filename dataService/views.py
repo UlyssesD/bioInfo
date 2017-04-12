@@ -7,8 +7,10 @@ from django.http import HttpResponse, JsonResponse
 
 from neomodel import db
 from .models import *
-from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, DATA_FOLDER, CONVERTERS, BLACKLIST
+from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, TEMP_FOLDER, DATA_FOLDER, CONVERTERS, BLACKLIST
+from .utils import parse_vcf
 
+import uuid
 import gzip
 import strconv
 import json
@@ -115,6 +117,56 @@ def getFile(username, experiment, filename):
 
 # -------------------------------
 
+def upload(request):
+	
+	print "Uploading file..."
+
+	response = HttpResponse()
+
+	username = request.POST.get("username", None)
+	experiment = request.POST.get("experiment", None)
+	species = request.POST.get("species", None)
+	extension = request.POST.get("type", None)
+	file_id = str(uuid.uuid4())
+	
+	print "Username:", username, "Experiment:", experiment, "Species:", species, "Extension:", extension
+
+	file = request.FILES['file']
+	filename = file.name
+	
+	print filename
+
+	print file.temporary_file_path()
+
+	try:
+		parse_vcf.main([file.temporary_file_path(), TEMP_FOLDER, DATA_FOLDER, username, experiment, species, file_id])
+		
+		# Trovo l'utente che sta caricando il file
+		user = User.nodes.get(username=username)
+
+		# Creo il nodo corrispondente al file
+		f = File(file_id=file_id, name=filename, extension=extension, experiment=experiment, species=species)
+		f.save()
+		
+		# Aggiungo l'arco Utente - File
+		user.owns.connect(f)
+
+		response.status_code = 200
+
+	except Exception as e:
+		print e
+		response.status_code = 500
+		response.content = e
+		raise
+
+	finally:
+		print "Sending response to client."
+		return response
+	#with open(TEMP_FOLDER + file_id + "." + extension, "wb+") as destination:
+	#	for chunk in file.chunks():
+	#		destination.write(chunk)
+
+
 def signup(request):
 
 	response = {
@@ -140,6 +192,7 @@ def signup(request):
 	print response
 	return JsonResponse(response)
 
+
 def login(request):
 
 	response = {
@@ -162,6 +215,7 @@ def login(request):
 		
 	print response
 	return JsonResponse(response)
+
 
 # ---- Funzione per restituire l'elenco dei cromosomi presenti nel database
 def chromosomes(request):
@@ -270,33 +324,56 @@ def experiments(request, username):
 	return JsonResponse(response)
 
 
-# ---- Funzione che restituisce tutti i file che appartengono ad uno specifico esperimento
-def files(request, username, experiment):
+def files(request):
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
-
+		'headers': ['Filename', "Extension", "Experiment", "Species", "File_id"],
 		'elements': []
 	}
 
-	# ---- ricavo l'esperimento di interesse
+	data = json.loads(request.body)
+
+	username = data["username"] or username
+
+	# ---- ricavo i file associati ad un particolare utente
 	user = User.nodes.get(username=username)
-	experiment = user.created.get(name=experiment)
 
-	# ---- ricavo i file che fanno parte dell'esperimento selezionato
-	files = experiment.composedBy.all()
+	files = user.owns.all()
 
-	for f in files:
-
-		file = {
-			'filename': f.name,
-			'extension': f.extension
-		}
-
-		response['elements'].append(file)
+	for file in files:
+		response['elements'].append([file.name, file.extension, file.experiment, file.species, file.file_id])
 
 	# ---- restituisco la risposta al client
 	return JsonResponse(response)
+
+# # ---- Funzione che restituisce tutti i file che appartengono ad uno specifico esperimento
+# def files(request, username, experiment):
+
+# 	# ---- inizializzo un dictionary per memorizzare i risultati
+# 	response = {
+
+# 		'elements': []
+# 	}
+
+# 	# ---- ricavo l'esperimento di interesse
+# 	user = User.nodes.get(username=username)
+# 	experiment = user.created.get(name=experiment)
+
+# 	# ---- ricavo i file che fanno parte dell'esperimento selezionato
+# 	files = experiment.composedBy.all()
+
+# 	for f in files:
+
+# 		file = {
+# 			'filename': f.name,
+# 			'extension': f.extension
+# 		}
+
+# 		response['elements'].append(file)
+
+# 	# ---- restituisco la risposta al client
+# 	return JsonResponse(response)
 
 
 # ---- Funzione che restituisce le statistiche di un file

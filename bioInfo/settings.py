@@ -88,7 +88,12 @@ DATABASES = {
     }
 }
 
+#FILE_UPLOAD_TEMP_DIR = "/home/stefano_d/Documenti/temp/"
 
+FILE_UPLOAD_HANDLERS = [
+    #'django.core.files.uploadhandler.MemoryFileUploadHandler',
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
 # Password validation
 # https://docs.djangoproject.com/en/1.10/ref/settings/#auth-password-validators
 

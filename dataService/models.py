@@ -37,9 +37,20 @@ class User(StructuredNode):
 	email = StringProperty(Required=True)
 
 	# ---- relazioni
-	created = RelationshipTo('Experiment', 'Created')
+	owns = RelationshipTo('File', 'Owns')
 
+class File(StructuredNode):
+	
+	# ---- attributi
+	file_id = StringProperty(UniqueIndex=True, Required=True)
+	name = StringProperty(Required=True)
+	extension = StringProperty(Required=True)
+	experiment = StringProperty(Required=True)
+	species = StringProperty(Required=True)
+	
 
+	# ---- relazioni
+	owns = RelationshipFrom('User', 'Owns')
 
 class Experiment(StructuredNode):
 
@@ -62,16 +73,16 @@ class Species(StructuredNode):
 	ofSpecies = RelationshipFrom('Genotype', 'Of_Species')
 
 
-class File(StructuredNode):
+# class File(StructuredNode):
 	
-	# ---- attributi
-	name = StringProperty(UniqueIndex=True, Required=True)
-	extension = StringProperty()
-	statistics = JSONProperty()
+# 	# ---- attributi
+# 	name = StringProperty(UniqueIndex=True, Required=True)
+# 	extension = StringProperty()
+# 	statistics = JSONProperty()
 
-	# ---- relazioni
-	composedBy = RelationshipFrom('Experiment', 'Composed_By')
-	contains = RelationshipTo('Info', 'Contains')
+# 	# ---- relazioni
+# 	composedBy = RelationshipFrom('Experiment', 'Composed_By')
+# 	contains = RelationshipTo('Info', 'Contains')
 
 class Info(StructuredNode):
 

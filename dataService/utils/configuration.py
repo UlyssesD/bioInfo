@@ -2,6 +2,7 @@
 import pandas 
 # ---- variable contenente il path della cartella che contiene i file formato csv elaborati da pandas
 DATA_FOLDER = "/home/stefano_d/Documenti/database/"
+TEMP_FOLDER = "/home/stefano_d/Documenti/temp/"
 
 CONVERTERS = {
 	"AB": list
