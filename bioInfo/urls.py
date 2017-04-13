@@ -20,3 +20,4 @@ urlpatterns = [
 	url(r'^dataService/', include('dataService.urls')),
     url(r'^admin/', admin.site.urls),
 ]
+

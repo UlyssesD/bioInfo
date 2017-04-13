@@ -4,12 +4,14 @@
 
 # Create your views here.
 from django.http import HttpResponse, JsonResponse
+from wsgiref.util import FileWrapper
 
 from neomodel import db
 from .models import *
 from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, TEMP_FOLDER, DATA_FOLDER, CONVERTERS, BLACKLIST
 from .utils import parse_vcf
 
+import os
 import uuid
 import gzip
 import strconv
@@ -17,6 +19,7 @@ import json
 import re
 import pandas as panda
 import urllib
+import mimetypes
 
 HOST = "localhost"
 PORT = "80"
@@ -166,6 +169,28 @@ def upload(request):
 	#	for chunk in file.chunks():
 	#		destination.write(chunk)
 
+def download(request):
+
+	response = HttpResponse()
+
+	data = json.loads(request.body)
+
+	file_id = data["file_id"] or None
+
+	if file_id:
+		print file_id
+		filename = DATA_FOLDER + file_id + ".data.gz"
+  		#download_name ="example.csv"
+  		wrapper      = FileWrapper(open(filename))
+  		content_type = mimetypes.guess_type(filename)[0]
+  		response     = HttpResponse(wrapper,content_type=content_type)
+  		response['Content-Length']      = os.path.getsize(filename)    
+  		response['Content-Disposition'] = "attachment; filename=%s"%file_id
+
+	else:
+		response.status_code = 500
+
+	return response
 
 def signup(request):
 
@@ -328,6 +353,7 @@ def files(request):
 
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
+		'base_url': "http://" + HOST + ":" + PORT + "/dataService/download/",
 		'headers': ['Filename', "Extension", "Experiment", "Species", "File_id"],
 		'elements': []
 	}
@@ -341,7 +367,9 @@ def files(request):
 
 	files = user.owns.all()
 
+
 	for file in files:
+		
 		response['elements'].append([file.name, file.extension, file.experiment, file.species, file.file_id])
 
 	# ---- restituisco la risposta al client
@@ -385,7 +413,7 @@ def statistics(request, username, experiment, filename):
 		"elems": []
 	}
 
-	stats = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".stats.gz", sep="\t", compression="infer")
+	stats = panda.read_csv(DATA_FOLDER + filename + ".stats.gz", sep="\t", compression="infer")
 
 	print stats
 
@@ -723,7 +751,7 @@ def search(request, key):
 
 	print username, experiment, file, key, term
 
-	dictionary = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".dictionary.data.gz", sep="\t", compression="infer")
+	dictionary = panda.read_csv(DATA_FOLDER  + filename + ".dictionary.data.gz", sep="\t", compression="infer")
 	dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
 
 	entries = dictionary[(dictionary["Key"] == key)].iloc[:,1:].T.dropna()
@@ -749,8 +777,8 @@ def filters(request, username, experiment, filename):
  	}
 
  	# ---- leggo il csv specificato dall'input
-	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
-	dictionary = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".dictionary.data.gz", sep="\t", compression="infer")
+	keys = panda.read_csv(DATA_FOLDER  + filename + ".types.data.gz", sep="\t", compression="infer")
+	dictionary = panda.read_csv(DATA_FOLDER + filename + ".dictionary.data.gz", sep="\t", compression="infer")
 
 	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
 	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
@@ -847,12 +875,12 @@ def count(request, username, experiment, filename):
 	#last = int(request.body.get('last', 100))
 	#query_filters = request.body.get('filters', "lallero")
 
-	with gzip.open(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", 'r') as f:
+	with gzip.open(DATA_FOLDER + filename + ".data.gz", 'r') as f:
 		header = f.readline().rstrip().split('\t')
 
 
 	# ---- leggo il csv specificato dall'input
-	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
+	keys = panda.read_csv(DATA_FOLDER + filename + ".types.data.gz", sep="\t", compression="infer")
 	
 	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
 	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
@@ -862,7 +890,7 @@ def count(request, username, experiment, filename):
 
 	# ---- leggo il csv specificato dall'input
 	chunksize = 100000
-	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=first, chunksize=chunksize, compression="infer")
+	chunks = panda.read_csv(DATA_FOLDER + filename + ".data.gz", sep="\t", names=header, skiprows=first, chunksize=chunksize, compression="infer")
 
 	if query_filters:
 		filters_frame = panda.DataFrame(data=query_filters['list'])
@@ -962,12 +990,12 @@ def details(request, username, experiment, filename):
 	#for el in structure:
 	#	response["header"].append(el["label"])
 
-	with gzip.open(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", 'r') as f:
+	with gzip.open(DATA_FOLDER + filename + ".data.gz", 'r') as f:
 		header = f.readline().rstrip().split('\t')
 
 
 	# ---- leggo il csv specificato dall'input
-	keys = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".types.data.gz", sep="\t", compression="infer")
+	keys = panda.read_csv(DATA_FOLDER + filename + ".types.data.gz", sep="\t", compression="infer")
 	
 	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
 	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
@@ -979,7 +1007,7 @@ def details(request, username, experiment, filename):
 	# ---- leggo il csv specificato dall'input
 	chunksize = 100000
 	chunk_number = 0
-	chunks = panda.read_csv(DATA_FOLDER + username + "_" + experiment + "_" + filename + ".data.gz", sep="\t", names=header, skiprows=last, chunksize=chunksize, compression="infer")
+	chunks = panda.read_csv(DATA_FOLDER + filename + ".data.gz", sep="\t", names=header, skiprows=last, chunksize=chunksize, compression="infer")
 
 
 
