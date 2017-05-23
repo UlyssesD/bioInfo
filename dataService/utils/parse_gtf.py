@@ -78,7 +78,7 @@ def main(argv):
 	species = argv[5]		# ---- specie del file passato in input
 	file_id = argv[6] or str(uuid.uuid4())
 	# ---- Apro il file vcf
-	print 'Opening .vcf file...'
+	print 'Opening .gtf file...'
 	file = open(input_file, 'r')
 	
 	#reader = vcf.Reader(file, encoding='utf-8')
