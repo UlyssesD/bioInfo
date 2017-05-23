@@ -149,7 +149,7 @@ def main(argv):
 	username =  argv[3]		# ---- nome utente del proprietario del file
 	experiment = argv[4]	# ---- esperimento a cui il file appartiene
 	species = argv[5]		# ---- specie del file passato in input
-	file_id = argv[6] or os.path.basename(file.name)
+	file_id = argv[6] or str(uuid.uuid4())
 	# ---- Apro il file vcf
 	print 'Opening .vcf file...'
 	file = open(input_file, 'r')

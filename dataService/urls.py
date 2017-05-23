@@ -12,6 +12,7 @@ urlpatterns = [
 	#url(r'^genes/$', views.genes, name='genes'),
 	#url(r'^locations/$', views.locations, name='locations'),
 	url(r'^files/$', views.files, name='files'),
+	url(r'^filename/$', views.filename, name='filename'),
 	#url(r'^search/(?P<key>[a-zA-Z0-9_\.]+)/$', views.search, name='search'),
 	url(r'^(?P<username>[a-zA-Z0-9_]+)/experiments/$', views.experiments, name='experiments'),
 	#url(r'^(?P<username>[a-zA-Z0-9_]+)/(?P<experiment>[a-zA-Z0-9_\- ]+)/files/$', views.files, name='files'),

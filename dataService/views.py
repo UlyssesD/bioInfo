@@ -9,7 +9,7 @@ from wsgiref.util import FileWrapper
 from neomodel import db
 from .models import *
 from .utils.configuration import TABLE_STRUCTURE, FIXED_FILTERS, TEMP_FOLDER, DATA_FOLDER, CONVERTERS, BLACKLIST
-from .utils import parse_vcf
+from .utils import parse_vcf, parse_gtf
 
 import os
 import uuid
@@ -20,6 +20,8 @@ import re
 import pandas as panda
 import urllib
 import mimetypes
+import csv
+import time
 
 HOST = "localhost"
 PORT = "80"
@@ -142,8 +144,10 @@ def upload(request):
 	print file.temporary_file_path()
 
 	try:
-		parse_vcf.main([file.temporary_file_path(), TEMP_FOLDER, DATA_FOLDER, username, experiment, species, file_id])
-		
+		if extension == 'vcf':
+			parse_vcf.main([file.temporary_file_path(), TEMP_FOLDER, DATA_FOLDER, username, experiment, species, file_id])
+		elif extension == 'gtf':
+			parse_gtf.main([file.temporary_file_path(), TEMP_FOLDER, DATA_FOLDER, username, experiment, species, file_id])
 		# Trovo l'utente che sta caricando il file
 		user = User.nodes.get(username=username)
 
@@ -348,6 +352,22 @@ def experiments(request, username):
 	# ---- restituisco la risposta al client
 	return JsonResponse(response)
 
+def filename(request):
+	
+	response = {
+		'name': ""
+	}
+
+	data = json.loads(request.body)
+	file_id = data["file_id"]
+
+	file = File.nodes.get_or_none(file_id=file_id)
+
+	if file:
+		print "File name is:", file.name
+		response['name'] = file.name
+
+	return JsonResponse(response)
 
 def files(request):
 
@@ -754,7 +774,7 @@ def search(request, key):
 	dictionary = panda.read_csv(DATA_FOLDER  + filename + ".dictionary.data.gz", sep="\t", compression="infer")
 	dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
 
-	entries = dictionary[(dictionary["Key"] == key)].iloc[:,1:].T.dropna()
+	entries = dictionary.iloc[:,1:].T.dropna()
 	response["options"] = entries.iloc[:,0].tolist()
 	#print entries
 	#response["options"] = entries[(entries.iloc[:,0].map(lambda entry: entry.lower().startswith(term)))].iloc[:,0].tolist()
@@ -777,18 +797,36 @@ def filters(request, username, experiment, filename):
  	}
 
  	# ---- leggo il csv specificato dall'input
-	keys = panda.read_csv(DATA_FOLDER  + filename + ".types.data.gz", sep="\t", compression="infer")
-	dictionary = panda.read_csv(DATA_FOLDER + filename + ".dictionary.data.gz", sep="\t", compression="infer")
+	keys = panda.read_csv(DATA_FOLDER  + filename + ".types.data.gz", sep="\t", compression="gzip")
+
+	dictionary = {}
+	
+	with gzip.open(DATA_FOLDER + filename + ".dictionary.data.gz", 'r') as f:
+		reader = csv.reader(f, delimiter='\t', dialect='excel-tab', quotechar='|')
+		reader.next()
+		for line in reader:
+			values = filter(None,line)
+			if not values[0] in BLACKLIST:
+				dictionary[values[0]] = values[1:]
+
+		#header = f.readline().rstrip().split('\t')
+
+	#print dictionary
+	#dictionary = {}
+	#dict_chunks = panda.read_csv(DATA_FOLDER + filename + ".dictionary.data.gz", names=header, skiprows=1, chunksize=1, sep="\t", compression="gzip")
+	#for chunk in dict_chunks:
+		#print chunk.iloc[:,0]
+
 
 	# ---- rimuovo dal dataset (se esistono) tutte le chiavi che sono presenti nella BLACKLIST
 	keys.drop(keys[(keys["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
-	dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
+	#dictionary.drop(dictionary[(dictionary["Key"].map(lambda k: k in BLACKLIST))].index.tolist(), axis=0, inplace=True)
 	
 	#print keys
 	#print dictionary
 
 	for index, row in keys.iterrows():
-
+		print "retrieving filter type for key", row.Key
 		if row.Type == "int" or row.Type == "float":
 			response["list"].append({
 					"label": row.Key,
@@ -809,21 +847,24 @@ def filters(request, username, experiment, filename):
 				})
 
 		elif row.Type == "string":
-			entries = dictionary[ dictionary["Key"] == row.Key ].iloc[:,1:].T.dropna()
+			#entries = dictionary[ dictionary["Key"] == row.Key ].iloc[:,1:].T.dropna()
 			
 			# print row.Key, ", empty?", entries.empty
-
-			if not entries.empty:
-				print "Number of entries for key", row.Key, ":", len(entries.iloc[:,0])
-
-			 	if len(entries.iloc[:,0]) <= 30:
+			if dictionary.has_key(row.Key):
+			#if not entries.empty:
+				#print "Number of entries for key", row.Key, ":", len(entries.iloc[:,0])
+				print "Number of entries for key", row.Key, ":", len(dictionary[row.Key])
+			 	if len(dictionary[row.Key]) <= 30:
+			 	#if len(entries.iloc[:,0]) <= 30:
 					
 			 		response["list"].append({
 			 			"label": row.Key,
 			 			"type": "select",
 			 			"importance": 1,
-			 			"length": len(entries.iloc[:,0]),
-			 			"options": sorted(entries.iloc[:,0].tolist()),
+			 			#"length": len(entries.iloc[:,0]),
+			 			#"options": entries.iloc[:,0].tolist(),
+			 			"length": len(dictionary[row.Key]),
+			 			"options": dictionary[row.Key],
 			 			"value": None
 			 		})
 
@@ -833,9 +874,11 @@ def filters(request, username, experiment, filename):
 			 			"label": row.Key,
 			 			"type": "autocomplete",
 			 			"importance": 3,
-			 			"length": len(entries.iloc[:,0]),
-			 			"url": "http://" + HOST + ":" + PORT + "/dataService/search/" + urllib.quote(row.Key, safe='') + "/",
-			 			"options": entries.iloc[:,0].tolist(),
+			 			#"length": len(entries.iloc[:,0]),
+			 			#"url": "http://" + HOST + ":" + PORT + "/dataService/search/" + urllib.quote(row.Key, safe='') + "/",
+			 			#"options": entries.iloc[:,0].tolist(),
+			 			"length": len(dictionary[row.Key]),
+			 			"options": dictionary[row.Key],
 			 			"value": None
 			 		})
 			else:
@@ -954,7 +997,7 @@ def count(request, username, experiment, filename):
 
 # ---- Funzione che restituisce le righe di un file da mostrare in tabella
 def details(request, username, experiment, filename):
-
+	start_time = time.clock()
 	# ---- inizializzo un dictionary per memorizzare i risultati
 	response = {
 		'first': 1,
@@ -1133,7 +1176,7 @@ def details(request, username, experiment, filename):
 	response["count"] = len(response["rows"])
 
 	print "last:", response["last"]
-
+	print "Execution time:", str(round((time.clock() - start_time),2))
 	return JsonResponse(response)
 
 def any_in_list(array, value):
